@@ -17,14 +17,33 @@ endif()
 
 set(LibHYDRASDR_CFLAGS_OTHER ${PC_LibHYDRASDR_CFLAGS_OTHER})
 
+# Define possible project-specific installation paths
+set(PROJECT_INSTALL_PATHS
+    "${CMAKE_CURRENT_SOURCE_DIR}/rfone_host_build/install/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../rfone_host_build/install/include"
+    "${CMAKE_CURRENT_BINARY_DIR}/rfone_host_build/install/include"
+    "${CMAKE_CURRENT_BINARY_DIR}/../rfone_host_build/install/include"
+)
+
+set(PROJECT_LIB_PATHS
+    "${CMAKE_CURRENT_SOURCE_DIR}/rfone_host_build/install/lib"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../rfone_host_build/install/lib"
+    "${CMAKE_CURRENT_BINARY_DIR}/rfone_host_build/install/lib"
+    "${CMAKE_CURRENT_BINARY_DIR}/../rfone_host_build/install/lib"
+)
+
 find_path(
     LibHYDRASDR_INCLUDE_DIRS
     NAMES hydrasdr.h libhydrasdr/hydrasdr.h
     HINTS $ENV{LibHYDRASDR_DIR}/include
         ${PC_LibHYDRASDR_INCLUDEDIR}
-    PATHS /usr/local/include
-          /usr/include
-          /opt/local/include
+    PATHS 
+        # Project-specific paths (for CI builds)
+        ${PROJECT_INSTALL_PATHS}
+        # Standard system paths
+        /usr/local/include
+        /usr/include
+        /opt/local/include
     PATH_SUFFIXES libhydrasdr
 )
 
@@ -33,11 +52,15 @@ find_library(
     NAMES hydrasdr libhydrasdr
     HINTS $ENV{LibHYDRASDR_DIR}/lib
         ${PC_LibHYDRASDR_LIBDIR}
-    PATHS /usr/local/lib
-          /usr/lib
-          /usr/lib/x86_64-linux-gnu
-          /usr/lib64
-          /opt/local/lib
+    PATHS
+        # Project-specific paths (for CI builds)
+        ${PROJECT_LIB_PATHS}
+        # Standard system paths
+        /usr/local/lib
+        /usr/lib
+        /usr/lib/x86_64-linux-gnu
+        /usr/lib64
+        /opt/local/lib
 )
 
 set(LibHYDRASDR_VERSION ${PC_LibHYDRASDR_VERSION})
@@ -60,4 +83,10 @@ if(LibHYDRASDR_FOUND)
     message(STATUS "  Libraries: ${LibHYDRASDR_LIBRARIES}")
     message(STATUS "  Include dirs: ${LibHYDRASDR_INCLUDE_DIRS}")
     message(STATUS "  CFlags: ${LibHYDRASDR_CFLAGS_OTHER}")
+else()
+    message(STATUS "LibHydraSDR NOT found. Searched in:")
+    message(STATUS "  Project paths: ${PROJECT_INSTALL_PATHS}")
+    message(STATUS "  System paths: /usr/local/include, /usr/include")
+    message(STATUS "  Library paths: ${PROJECT_LIB_PATHS}")
+    message(STATUS "  System lib paths: /usr/local/lib, /usr/lib, /usr/lib/x86_64-linux-gnu")
 endif()
