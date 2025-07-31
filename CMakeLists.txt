@@ -93,7 +93,7 @@ endif()
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 # Try to find system-installed LibHYDRASDR first
-find_package(LibHYDRASDR QUIET)
+find_package(LibHYDRASDR REQUIRED)
 
 if(NOT LibHYDRASDR_FOUND)
 	message(STATUS "System LibHYDRASDR not found, will use locally built version")
