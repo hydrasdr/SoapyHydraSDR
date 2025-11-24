@@ -1,17 +1,14 @@
 Source: soapyhydrasdr
 Section: hamradio
 Priority: optional
-Maintainer: 
-Uploaders: 
+Maintainer: Benjamin Vernoux <bvernoux@hydrasdr.com>
 Build-Depends:
-    debhelper (>= 9.0.0),
+    debhelper (>= 11.0.0),
     cmake,
     libsoapysdr-dev,
     libhydrasdr-dev
 Standards-Version: 4.5.0
 Homepage: https://github.com/hydrasdr/SoapyHydraSDR
-Vcs-Git: 
-Vcs-Browser: 
 
 Package: soapysdr0.7-module-hydrasdr
 Architecture: any
