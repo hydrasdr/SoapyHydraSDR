@@ -1,3 +1,8 @@
+soapyhydrasdr (1.0.0-1) unstable; urgency=medium
+
+  * New upstream master
+
+ -- Daniel Ekman <knegge@gmail.com>  Sun, 07 Dec 2025 16:23:18 +0000
 soapyhydrasdr (0.1.0-1) unstable; urgency=low
 
   * Release 0.1.0 (2025-06-14)
