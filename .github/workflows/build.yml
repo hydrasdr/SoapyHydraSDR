@@ -173,7 +173,16 @@ jobs:
         
         # Verify installation
         echo "=== Verifying LibHydraSDR installation ==="
-        ls -la ../../rfone_host_build/install/lib/ || echo "No lib directory found"
+        # Check lib directory (lib or lib64 depending on distro)
+        if [ -d "../../rfone_host_build/install/lib" ]; then
+          LIBDIR="../../rfone_host_build/install/lib"
+        elif [ -d "../../rfone_host_build/install/lib64" ]; then
+          LIBDIR="../../rfone_host_build/install/lib64"
+        else
+          echo "No lib or lib64 directory found"
+          exit 1
+        fi
+        ls -la "$LIBDIR"
         ls -la ../../rfone_host_build/install/include/ || echo "No include directory found"
         
         # Check for specific files based on platform
@@ -832,13 +841,13 @@ jobs:
         ls -la ../../rfone_host_build/install/include/ || echo "No include directory found"
         
         # Check for specific files
-        if [ -f "../../rfone_host_build/install/lib/libhydrasdr.so" ]; then
+        if [ -f "$LIBDIR/libhydrasdr.so" ]; then
           echo "✓ Found libhydrasdr.so"
           # Only use file command if available
           if command -v file >/dev/null 2>&1; then
-            file ../../rfone_host_build/install/lib/libhydrasdr.so
+            file "$LIBDIR/libhydrasdr.so"
           else
-            ls -l ../../rfone_host_build/install/lib/libhydrasdr.so
+            ls -l "$LIBDIR/libhydrasdr.so"
           fi
         else
           echo "✗ libhydrasdr.so not found"
