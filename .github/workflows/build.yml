@@ -187,9 +187,9 @@ jobs:
         
         # Check for specific files based on platform
         if [ "${{ matrix.platform }}" = "macos" ]; then
-          EXPECTED_LIB="../../rfone_host_build/install/lib/libhydrasdr.dylib"
+          EXPECTED_LIB="$LIBDIR/libhydrasdr.dylib"
         else
-          EXPECTED_LIB="../../rfone_host_build/install/lib/libhydrasdr.so"
+          EXPECTED_LIB="$LIBDIR/libhydrasdr.so"
         fi
         
         if [ -f "$EXPECTED_LIB" ]; then
@@ -559,6 +559,7 @@ jobs:
         echo "Testing SoapySDR module installation..."
         # Test that libhydrasdr was built correctly
         export LD_LIBRARY_PATH=rfone_host_build/install/lib:$LD_LIBRARY_PATH
+        export LD_LIBRARY_PATH=rfone_host_build/install/lib64:$LD_LIBRARY_PATH
         rfone_host_build/install/bin/hydrasdr_lib_version || echo "hydrasdr_lib_version not available"
         
         # Test that the SoapySDR module can be found
@@ -837,7 +838,16 @@ jobs:
         
         # Verify installation
         echo "=== Verifying LibHydraSDR installation ==="
-        ls -la ../../rfone_host_build/install/lib/ || echo "No lib directory found"
+        # Check lib directory (lib or lib64 depending on distro)
+        if [ -d "../../rfone_host_build/install/lib" ]; then
+          LIBDIR="../../rfone_host_build/install/lib"
+        elif [ -d "../../rfone_host_build/install/lib64" ]; then
+          LIBDIR="../../rfone_host_build/install/lib64"
+        else
+          echo "No lib or lib64 directory found"
+          exit 1
+        fi
+        ls -la "$LIBDIR"
         ls -la ../../rfone_host_build/install/include/ || echo "No include directory found"
         
         # Check for specific files
