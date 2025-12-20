@@ -55,7 +55,13 @@ For best compatibility, especially if you've built SoapySDR from source, build S
 # Install dependencies (Debian/Ubuntu)
 sudo apt-get install build-essential cmake pkg-config libusb-1.0-0-dev
 
+# Optional: Clean up previous installations
+sudo rm -f /usr/local/lib/libhydrasdr*
+sudo rm -f /usr/local/lib/SoapySDR/modules*/libSoapyHydraSDR*
+sudo ldconfig
+
 # Build and install SoapySDR from source (recommended)
+rm -rf SoapySDR
 git clone https://github.com/pothosware/SoapySDR.git
 cd SoapySDR && mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
@@ -64,22 +70,28 @@ sudo make install
 sudo ldconfig
 cd ../..
 
-# Build and install libhydrasdr
+# Build and install libhydrasdr (shared library required)
+rm -rf rfone_host
 git clone https://github.com/hydrasdr/rfone_host.git
 cd rfone_host && mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
+cmake .. -DCMAKE_BUILD_TYPE=Release -DENABLE_SHARED_LIB=ON
 make -j$(nproc)
 sudo make install
 sudo ldconfig
 cd ../..
 
 # Build and install SoapyHydraSDR
+rm -rf SoapyHydraSDR
 git clone https://github.com/hydrasdr/SoapyHydraSDR.git
 cd SoapyHydraSDR && mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
 sudo make install
 sudo ldconfig
+
+# Verify installation
+SoapySDRUtil --info
+SoapySDRUtil --probe="driver=hydrasdr"
 ```
 
 #### Windows
