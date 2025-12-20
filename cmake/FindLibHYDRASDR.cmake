@@ -27,10 +27,27 @@ set(PROJECT_INSTALL_PATHS
 
 set(PROJECT_LIB_PATHS
     "${CMAKE_CURRENT_SOURCE_DIR}/rfone_host_build/install/lib"
+    "${CMAKE_CURRENT_SOURCE_DIR}/rfone_host_build/install/lib64"
     "${CMAKE_CURRENT_SOURCE_DIR}/../rfone_host_build/install/lib"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../rfone_host_build/install/lib64"
     "${CMAKE_CURRENT_BINARY_DIR}/rfone_host_build/install/lib"
+    "${CMAKE_CURRENT_BINARY_DIR}/rfone_host_build/install/lib64"
     "${CMAKE_CURRENT_BINARY_DIR}/../rfone_host_build/install/lib"
+    "${CMAKE_CURRENT_BINARY_DIR}/../rfone_host_build/install/lib64"
 )
+
+# Windows-specific paths (vcpkg)
+if(WIN32)
+    list(APPEND PROJECT_INSTALL_PATHS
+        "${CMAKE_CURRENT_SOURCE_DIR}/rfone_host_build/install/include"
+        "${LIBHYDRASDR_ROOT}/include"
+    )
+    list(APPEND PROJECT_LIB_PATHS
+        "${CMAKE_CURRENT_SOURCE_DIR}/rfone_host_build/install/bin"
+        "${LIBHYDRASDR_ROOT}/lib"
+        "${LIBHYDRASDR_ROOT}/bin"
+    )
+endif()
 
 find_path(
     LibHYDRASDR_INCLUDE_DIRS
@@ -88,5 +105,5 @@ else()
     message(STATUS "  Project paths: ${PROJECT_INSTALL_PATHS}")
     message(STATUS "  System paths: /usr/local/include, /usr/include")
     message(STATUS "  Library paths: ${PROJECT_LIB_PATHS}")
-    message(STATUS "  System lib paths: /usr/local/lib, /usr/lib, /usr/lib/x86_64-linux-gnu")
+    message(STATUS "  System lib paths: /usr/local/lib, /usr/lib, /usr/lib64, /usr/lib/x86_64-linux-gnu")
 endif()
