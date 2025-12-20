@@ -170,7 +170,7 @@ jobs:
       run: |
         cd rfone_host_src
         mkdir build && cd build
-
+        
         if [ "${{ matrix.platform }}" = "macos" ]; then
           if [ "${{ matrix.arch }}" = "arm64" ]; then
             cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../../rfone_host_build/install -DCMAKE_OSX_ARCHITECTURES=arm64 -DINSTALL_UDEV_RULES=OFF -DENABLE_SHARED_LIB=ON
@@ -251,6 +251,7 @@ jobs:
         $installPrefix = Join-Path $currentDir "..\..\rfone_host_build\install"
         
         cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_INSTALL_PREFIX="$installPrefix" -DLIBUSB_INCLUDE_DIR="$depsLibusb\include\libusb-1.0" -DLIBUSB_LIBRARIES="$depsLibusb\MS64\dll\libusb-1.0.lib" -DTHREADS_PTHREADS_INCLUDE_DIR="$depsPthreads\include" -DTHREADS_PTHREADS_WIN32_LIBRARY="$depsPthreads\lib\x64\pthreadVC2.lib" -DENABLE_SHARED_LIB=ON
+        
         cmake --build . --config Release --parallel
         cmake --install . --config Release
         
@@ -399,6 +400,9 @@ jobs:
         
         # Find and copy SoapySDR module
         find build -name "*SoapyHydraSDR*" -type f -exec cp {} "$ARTIFACT_DIR/" \;
+        
+        # Copy built libhydrasdr
+        find rfone_host_build/install -name "libhydrasdr.so*" -exec cp {} "$ARTIFACT_DIR/" \; 2>/dev/null || true
 
     - name: Package artifacts (macOS)
       if: matrix.platform == 'macos'
@@ -409,7 +413,7 @@ jobs:
         # Find and copy SoapySDR module
         find build -name "*SoapyHydraSDR*" -type f -exec cp {} "$ARTIFACT_DIR/" \;
         
-        # Copy built libhydrasdr (needed for macOS as there's no separate package)
+        # Copy built libhydrasdr
         find rfone_host_build/install -name "libhydrasdr.dylib*" -exec cp {} "$ARTIFACT_DIR/" \; 2>/dev/null || true
 
     - name: Package artifacts (Windows)
@@ -426,7 +430,7 @@ jobs:
           Copy-Item $_.FullName -Destination $dir -ErrorAction SilentlyContinue
         }
         
-        # Copy built libhydrasdr and dependencies (needed for Windows as there's no separate package)
+        # Copy built libhydrasdr and dependencies
         Write-Host "Copying LibHydraSDR dependencies..."
         if (Test-Path "rfone_host_build\install\bin") {
           Get-ChildItem "rfone_host_build\install\bin" -Filter "*.dll" | Copy-Item -Destination $dir -ErrorAction SilentlyContinue
@@ -440,7 +444,6 @@ jobs:
 
     # === Create .deb package ===
     # FIXED: Install to multiple SoapySDR paths for compatibility with different installations
-    # FIXED: Do not bundle libhydrasdr.so - depend on hydrasdr-host-tools instead
     - name: Create .deb package
       if: matrix.create_deb == true
       shell: bash
@@ -464,6 +467,7 @@ jobs:
         mkdir -p "${PACKAGE_DIR}${SOAPY_SYSTEM_DIR}"
         mkdir -p "${PACKAGE_DIR}${SOAPY_LOCAL_DIR}"
         mkdir -p "${PACKAGE_DIR}${SOAPY_LOCAL_ABI_DIR}"
+        mkdir -p "${PACKAGE_DIR}/usr/lib"
         mkdir -p "${PACKAGE_DIR}/usr/share/doc/${PACKAGE_NAME_FULL}"
         
         # Copy SoapySDR module to ALL common paths for maximum compatibility
@@ -475,135 +479,122 @@ jobs:
         
         # Create control file
         cat > "${PACKAGE_DIR}/DEBIAN/control" << EOF
-Package: ${PACKAGE_NAME_FULL}
-Version: ${PACKAGE_VERSION}
-Section: electronics
-Priority: optional
-Architecture: ${ARCH}
-Depends: libusb-1.0-0 (>= 1.0.20), hydrasdr-host-tools (>= 1.0.0)
-Recommends: soapysdr-tools
-Maintainer: ${{ env.MAINTAINER }}
-Description: SoapySDR module for HydraSDR RFOne devices (ABI 0.8-3)
- SoapySDR driver module for HydraSDR RFOne software-defined radio hardware.
- Provides seamless integration with SoapySDR ecosystem and applications.
- .
- IMPORTANT: This module is built against SoapySDR ABI 0.8-3.
- For best compatibility, build SoapySDR from source:
-   git clone https://github.com/pothosware/SoapySDR.git
-   cd SoapySDR && mkdir build && cd build
-   cmake .. && make -j\$(nproc) && sudo make install
- .
- This package includes:
-  - SoapySDR module for HydraSDR RFOne (ABI 0.8-3)
-  - Automatic device detection and configuration
- .
- Built for: ${{ matrix.name }}
- LibHydraSDR version: ${{ needs.extract-version.outputs.rfone_version }}
-Homepage: ${{ env.HOMEPAGE }}
-EOF
+        Package: ${PACKAGE_NAME_FULL}
+        Version: ${PACKAGE_VERSION}
+        Section: electronics
+        Priority: optional
+        Architecture: ${ARCH}
+        Depends: libusb-1.0-0 (>= 1.0.20), hydrasdr-host-tools (>= 1.0.0)
+        Recommends: soapysdr-tools
+        Maintainer: ${{ env.MAINTAINER }}
+        Homepage: ${{ env.HOMEPAGE }}
+        Description: SoapySDR module for HydraSDR RFOne devices
+         SoapySDR driver module for HydraSDR RFOne software-defined radio hardware.
+         Provides seamless integration with SoapySDR ecosystem and applications.
+        EOF
         
         # Create postinst script with auto-detection and symlink creation
         cat > "${PACKAGE_DIR}/DEBIAN/postinst" << 'POSTINST_EOF'
-#!/bin/bash
-set -e
-
-# SoapyHydraSDR postinst - handles module path detection and symlink creation
-
-create_symlink_if_needed() {
-    local target_dir="$1"
-    local module_name="libSoapyHydraSDR.so"
-    local dest_file="${target_dir}/${module_name}"
-    
-    # Skip if target already exists or target directory doesn't exist
-    [ -e "$dest_file" ] && return 0
-    [ ! -d "$target_dir" ] && return 0
-    
-    # Find source module in order of preference
-    for src in /usr/lib/x86_64-linux-gnu/SoapySDR/modules0.8/${module_name} \
-               /usr/local/lib/SoapySDR/modules0.8/${module_name} \
-               /usr/local/lib/SoapySDR/modules0.8-3/${module_name}; do
-        if [ -f "$src" ]; then
-            ln -sf "$src" "$dest_file"
-            echo "SoapyHydraSDR: Created symlink in $target_dir"
-            return 0
-        fi
-    done
-}
-
-if [ "$1" = "configure" ]; then
-    # Update library cache first
-    command -v ldconfig >/dev/null 2>&1 && ldconfig || true
-    
-    # Detect actual SoapySDR module search path(s)
-    if command -v SoapySDRUtil >/dev/null 2>&1; then
-        SOAPY_PATHS=$(SoapySDRUtil --info 2>/dev/null | grep "Search path:" | awk '{print $3}')
+        #!/bin/bash
+        set -e
         
-        for SOAPY_PATH in $SOAPY_PATHS; do
-            if [ -n "$SOAPY_PATH" ] && [ -d "$SOAPY_PATH" ]; then
-                create_symlink_if_needed "$SOAPY_PATH"
+        # SoapyHydraSDR postinst - handles module path detection and symlink creation
+        
+        create_symlink_if_needed() {
+            local target_dir="$1"
+            local module_name="libSoapyHydraSDR.so"
+            local dest_file="${target_dir}/${module_name}"
+            
+            # Skip if target already exists or target directory doesn't exist
+            [ -e "$dest_file" ] && return 0
+            [ ! -d "$target_dir" ] && return 0
+            
+            # Find source module in order of preference
+            for src in /usr/lib/x86_64-linux-gnu/SoapySDR/modules0.8/${module_name} \
+                       /usr/local/lib/SoapySDR/modules0.8/${module_name} \
+                       /usr/local/lib/SoapySDR/modules0.8-3/${module_name}; do
+                if [ -f "$src" ]; then
+                    ln -sf "$src" "$dest_file"
+                    echo "SoapyHydraSDR: Created symlink in $target_dir"
+                    return 0
+                fi
+            done
+        }
+        
+        if [ "$1" = "configure" ]; then
+            # Update library cache first
+            command -v ldconfig >/dev/null 2>&1 && ldconfig || true
+            
+            # Detect actual SoapySDR module search path(s)
+            if command -v SoapySDRUtil >/dev/null 2>&1; then
+                SOAPY_PATHS=$(SoapySDRUtil --info 2>/dev/null | grep "Search path:" | awk '{print $3}')
+                
+                for SOAPY_PATH in $SOAPY_PATHS; do
+                    if [ -n "$SOAPY_PATH" ] && [ -d "$SOAPY_PATH" ]; then
+                        create_symlink_if_needed "$SOAPY_PATH"
+                    fi
+                done
+                
+                # Verify installation
+                echo "SoapyHydraSDR: Verifying installation..."
+                if SoapySDRUtil --info 2>/dev/null | grep -qi "hydrasdr"; then
+                    echo "SoapyHydraSDR: Module successfully detected!"
+                else
+                    echo "SoapyHydraSDR: Module installed. If not detected, check SoapySDRUtil --info"
+                fi
             fi
-        done
-        
-        # Verify installation
-        echo "SoapyHydraSDR: Verifying installation..."
-        if SoapySDRUtil --info 2>/dev/null | grep -qi "hydrasdr"; then
-            echo "SoapyHydraSDR: Module successfully detected!"
-        else
-            echo "SoapyHydraSDR: Module installed. If not detected, check SoapySDRUtil --info"
         fi
-    fi
-fi
-
-exit 0
-POSTINST_EOF
+        
+        exit 0
+        POSTINST_EOF
         
         # Create postrm script with proper cleanup
         cat > "${PACKAGE_DIR}/DEBIAN/postrm" << 'POSTRM_EOF'
-#!/bin/bash
-set -e
-if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
-    # Remove any symlinks we may have created
-    for path in /usr/lib/x86_64-linux-gnu/SoapySDR/modules0.8 \
-                /usr/local/lib/SoapySDR/modules0.8 \
-                /usr/local/lib/SoapySDR/modules0.8-3; do
-        target="${path}/libSoapyHydraSDR.so"
-        if [ -L "$target" ]; then
-            rm -f "$target"
+        #!/bin/bash
+        set -e
+        if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
+            # Remove any symlinks we may have created
+            for path in /usr/lib/x86_64-linux-gnu/SoapySDR/modules0.8 \
+                        /usr/local/lib/SoapySDR/modules0.8 \
+                        /usr/local/lib/SoapySDR/modules0.8-3; do
+                target="${path}/libSoapyHydraSDR.so"
+                if [ -L "$target" ]; then
+                    rm -f "$target"
+                fi
+            done
+            command -v ldconfig >/dev/null 2>&1 && ldconfig || true
         fi
-    done
-    command -v ldconfig >/dev/null 2>&1 && ldconfig || true
-fi
-exit 0
-POSTRM_EOF
+        exit 0
+        POSTRM_EOF
         
         chmod 755 "${PACKAGE_DIR}/DEBIAN/postinst" "${PACKAGE_DIR}/DEBIAN/postrm"
         
         # Create documentation
         cat > "${PACKAGE_DIR}/usr/share/doc/${PACKAGE_NAME_FULL}/copyright" << EOF
-Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: SoapyHydraSDR
-Upstream-Contact: ${{ env.MAINTAINER }}
-Source: https://github.com/hydrasdr/SoapyHydraSDR
-
-Files: *
-Copyright: 2025 ${{ env.MAINTAINER }}
-License: Custom-HydraSDR
- This software is licensed exclusively for HydraSDR products and related development.
- Unauthorized use, modification, or distribution for non-HydraSDR products is prohibited.
- All rights reserved.
-EOF
+        Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+        Upstream-Name: SoapyHydraSDR
+        Upstream-Contact: ${{ env.MAINTAINER }}
+        Source: https://github.com/hydrasdr/SoapyHydraSDR
+        
+        Files: *
+        Copyright: 2025 ${{ env.MAINTAINER }}
+        License: Custom-HydraSDR
+         This software is licensed exclusively for HydraSDR products and related development.
+         Unauthorized use, modification, or distribution for non-HydraSDR products is prohibited.
+         All rights reserved.
+        EOF
         
         cat > "${PACKAGE_DIR}/usr/share/doc/${PACKAGE_NAME_FULL}/changelog.Debian" << EOF
-${PACKAGE_NAME_FULL} (${PACKAGE_VERSION}) unstable; urgency=medium
-
-  * Automated build from CI for ${{ matrix.name }}
-  * Built with LibHydraSDR ${{ needs.extract-version.outputs.rfone_version }}
-  * Built from commit ${{ github.sha }}
-  * Fixed: Module now installs to multiple SoapySDR paths for compatibility
-  * Fixed: No longer bundles libhydrasdr.so (depends on hydrasdr-host-tools)
-
- -- ${{ env.MAINTAINER }}  $(date -R)
-EOF
+        ${PACKAGE_NAME_FULL} (${PACKAGE_VERSION}) unstable; urgency=medium
+        
+          * Automated build from CI for ${{ matrix.name }}
+          * Built with LibHydraSDR ${{ needs.extract-version.outputs.rfone_version }}
+          * Built from commit ${{ github.sha }}
+          * Fixed: Module now installs to multiple SoapySDR paths for compatibility
+          * Fixed: No longer bundles libhydrasdr.so (depends on hydrasdr-host-tools)
+        
+         -- ${{ env.MAINTAINER }}  $(date -R)
+        EOF
         
         gzip -9 "${PACKAGE_DIR}/usr/share/doc/${PACKAGE_NAME_FULL}/changelog.Debian"
         
@@ -612,6 +603,7 @@ EOF
         find "${PACKAGE_DIR}${SOAPY_SYSTEM_DIR}" -type f -exec chmod 644 {} \; 2>/dev/null || true
         find "${PACKAGE_DIR}${SOAPY_LOCAL_DIR}" -type f -exec chmod 644 {} \; 2>/dev/null || true
         find "${PACKAGE_DIR}${SOAPY_LOCAL_ABI_DIR}" -type f -exec chmod 644 {} \; 2>/dev/null || true
+        find "${PACKAGE_DIR}/usr/lib" -name "*.so*" -exec chmod 644 {} \;
         
         # Build package
         dpkg-deb --build "${PACKAGE_DIR}"
@@ -1000,10 +992,10 @@ EOF
         ARTIFACT_DIR="${{ env.PACKAGE_NAME }}-${{ matrix.name }}-v${{ needs.extract-version.outputs.version }}"
         mkdir -p "$ARTIFACT_DIR"
         find build -name "*SoapyHydraSDR*" -type f -exec cp {} "$ARTIFACT_DIR/" \;
+        find rfone_host_build/install -name "libhydrasdr.so*" -exec cp {} "$ARTIFACT_DIR/" \; 2>/dev/null || true
 
     # === Create distribution packages ===
     # FIXED: Install to multiple SoapySDR paths for compatibility with different installations
-    # FIXED: Do not bundle libhydrasdr.so - depend on hydrasdr-host-tools instead
     - name: Create .deb package
       if: matrix.create_deb == true
       shell: bash
@@ -1033,67 +1025,64 @@ EOF
         # NOTE: libhydrasdr.so is NOT bundled - provided by hydrasdr-host-tools package
         
         cat > "${PACKAGE_DIR}/DEBIAN/control" << EOF
-Package: ${PACKAGE_NAME_FULL}
-Version: ${PACKAGE_VERSION}
-Section: electronics
-Priority: optional
-Architecture: ${ARCH}
-Depends: libusb-1.0-0 (>= 1.0.20), hydrasdr-host-tools (>= 1.0.0)
-Recommends: soapysdr-tools
-Maintainer: ${{ env.MAINTAINER }}
-Description: SoapySDR module for HydraSDR RFOne devices (ABI 0.8-3)
- SoapySDR driver module for HydraSDR RFOne software-defined radio hardware.
- Built against SoapySDR ABI 0.8-3 for source-built SoapySDR compatibility.
- For best results, build SoapySDR from source (https://github.com/pothosware/SoapySDR).
- Built for: ${{ matrix.name }}
- LibHydraSDR version: ${{ needs.extract-version.outputs.rfone_version }}
-Homepage: ${{ env.HOMEPAGE }}
-EOF
+        Package: ${PACKAGE_NAME_FULL}
+        Version: ${PACKAGE_VERSION}
+        Section: electronics
+        Priority: optional
+        Architecture: ${ARCH}
+        Depends: libusb-1.0-0 (>= 1.0.20), hydrasdr-host-tools (>= 1.0.0)
+        Recommends: soapysdr-tools
+        Maintainer: ${{ env.MAINTAINER }}
+        Homepage: ${{ env.HOMEPAGE }}
+        Description: SoapySDR module for HydraSDR RFOne devices
+         SoapySDR driver module for HydraSDR RFOne software-defined radio hardware.
+         Provides seamless integration with SoapySDR ecosystem and applications.
+        EOF
         
         # Create postinst with auto-detection
         cat > "${PACKAGE_DIR}/DEBIAN/postinst" << 'POSTINST_EOF'
-#!/bin/bash
-set -e
-create_symlink_if_needed() {
-    local target_dir="$1"
-    local dest_file="${target_dir}/libSoapyHydraSDR.so"
-    [ -e "$dest_file" ] && return 0
-    [ ! -d "$target_dir" ] && return 0
-    for src in /usr/lib/x86_64-linux-gnu/SoapySDR/modules0.8/libSoapyHydraSDR.so \
-               /usr/local/lib/SoapySDR/modules0.8/libSoapyHydraSDR.so \
-               /usr/local/lib/SoapySDR/modules0.8-3/libSoapyHydraSDR.so; do
-        if [ -f "$src" ]; then
-            ln -sf "$src" "$dest_file"
-            return 0
+        #!/bin/bash
+        set -e
+        create_symlink_if_needed() {
+            local target_dir="$1"
+            local dest_file="${target_dir}/libSoapyHydraSDR.so"
+            [ -e "$dest_file" ] && return 0
+            [ ! -d "$target_dir" ] && return 0
+            for src in /usr/lib/x86_64-linux-gnu/SoapySDR/modules0.8/libSoapyHydraSDR.so \
+                       /usr/local/lib/SoapySDR/modules0.8/libSoapyHydraSDR.so \
+                       /usr/local/lib/SoapySDR/modules0.8-3/libSoapyHydraSDR.so; do
+                if [ -f "$src" ]; then
+                    ln -sf "$src" "$dest_file"
+                    return 0
+                fi
+            done
+        }
+        if [ "$1" = "configure" ]; then
+            ldconfig || true
+            if command -v SoapySDRUtil >/dev/null 2>&1; then
+                SOAPY_PATHS=$(SoapySDRUtil --info 2>/dev/null | grep "Search path:" | awk '{print $3}')
+                for SOAPY_PATH in $SOAPY_PATHS; do
+                    [ -n "$SOAPY_PATH" ] && [ -d "$SOAPY_PATH" ] && create_symlink_if_needed "$SOAPY_PATH"
+                done
+                SoapySDRUtil --info 2>/dev/null | grep -qi "hydrasdr" && echo "SoapyHydraSDR: Module detected!" || true
+            fi
         fi
-    done
-}
-if [ "$1" = "configure" ]; then
-    ldconfig || true
-    if command -v SoapySDRUtil >/dev/null 2>&1; then
-        SOAPY_PATHS=$(SoapySDRUtil --info 2>/dev/null | grep "Search path:" | awk '{print $3}')
-        for SOAPY_PATH in $SOAPY_PATHS; do
-            [ -n "$SOAPY_PATH" ] && [ -d "$SOAPY_PATH" ] && create_symlink_if_needed "$SOAPY_PATH"
-        done
-        SoapySDRUtil --info 2>/dev/null | grep -qi "hydrasdr" && echo "SoapyHydraSDR: Module detected!" || true
-    fi
-fi
-exit 0
-POSTINST_EOF
+        exit 0
+        POSTINST_EOF
         
         cat > "${PACKAGE_DIR}/DEBIAN/postrm" << 'POSTRM_EOF'
-#!/bin/bash
-set -e
-if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
-    for path in /usr/lib/x86_64-linux-gnu/SoapySDR/modules0.8 \
-                /usr/local/lib/SoapySDR/modules0.8 \
-                /usr/local/lib/SoapySDR/modules0.8-3; do
-        [ -L "${path}/libSoapyHydraSDR.so" ] && rm -f "${path}/libSoapyHydraSDR.so"
-    done
-    ldconfig || true
-fi
-exit 0
-POSTRM_EOF
+        #!/bin/bash
+        set -e
+        if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
+            for path in /usr/lib/x86_64-linux-gnu/SoapySDR/modules0.8 \
+                        /usr/local/lib/SoapySDR/modules0.8 \
+                        /usr/local/lib/SoapySDR/modules0.8-3; do
+                [ -L "${path}/libSoapyHydraSDR.so" ] && rm -f "${path}/libSoapyHydraSDR.so"
+            done
+            ldconfig || true
+        fi
+        exit 0
+        POSTRM_EOF
         
         chmod 755 "${PACKAGE_DIR}/DEBIAN/postinst" "${PACKAGE_DIR}/DEBIAN/postrm"
         
@@ -1101,6 +1090,7 @@ POSTRM_EOF
         find "${PACKAGE_DIR}${SOAPY_SYSTEM_DIR}" -type f -exec chmod 644 {} \; 2>/dev/null || true
         find "${PACKAGE_DIR}${SOAPY_LOCAL_DIR}" -type f -exec chmod 644 {} \; 2>/dev/null || true
         find "${PACKAGE_DIR}${SOAPY_LOCAL_ABI_DIR}" -type f -exec chmod 644 {} \; 2>/dev/null || true
+        find "${PACKAGE_DIR}/usr/lib" -name "*.so*" -exec chmod 644 {} \;
         
         dpkg-deb --build "${PACKAGE_DIR}"
         mv "${PACKAGE_DIR}.deb" "${{ env.PACKAGE_NAME }}-${{ matrix.name }}-v${PACKAGE_VERSION}.deb"
@@ -1159,70 +1149,67 @@ POSTRM_EOF
         
         # Create spec file with proper changelog format
         cat > ${RPM_BUILD_ROOT}/SPECS/${PACKAGE_NAME_FULL}.spec << 'EOF'
-Name:           soapyhydrasdr
-Version:        %{version}
-Release:        1%{?dist}
-Summary:        SoapySDR module for HydraSDR RFOne devices
+        Name:           soapyhydrasdr
+        Version:        %{version}
+        Release:        1%{?dist}
+        Summary:        SoapySDR module for HydraSDR RFOne devices
+        
+        License:        Custom-HydraSDR
+        URL:            %{homepage}
+        BuildArch:      x86_64
+        
+        BuildRequires:  gcc-c++, cmake
+        %if 0%{?suse_version}
+        BuildRequires:  pkgconfig, libusb-1_0-devel, soapy-sdr-devel
+        Requires:       libusb-1_0-0, soapy-sdr, hydrasdr-host-tools >= 1.0.0
+        %else
+        BuildRequires:  pkg-config, libusb1-devel, SoapySDR-devel
+        Requires:       libusb1, SoapySDR, hydrasdr-host-tools >= 1.0.0
+        %endif
+        
+        %description
+        SoapySDR driver module for HydraSDR RFOne software-defined radio hardware.
+        Provides seamless integration with SoapySDR ecosystem and applications.
+        
+        %prep
+        # No prep needed for binary package
+        
+        %build
+        # No build needed for binary package
+        
+        %install
+        rm -rf %{buildroot}
+        mkdir -p %{buildroot}/usr/lib64/SoapySDR/modules0.8
+        mkdir -p %{buildroot}/usr/local/lib64/SoapySDR/modules0.8-3
 
-License:        Custom-HydraSDR
-URL:            %{homepage}
-BuildArch:      x86_64
+        # Copy SoapySDR module files from temporary install location
+        if [ -d "%{temp_install}/usr/lib64/SoapySDR/modules0.8" ]; then
+          cp -a "%{temp_install}/usr/lib64/SoapySDR/modules0.8"/* %{buildroot}/usr/lib64/SoapySDR/modules0.8/ 2>/dev/null || true
+        fi
+        if [ -d "%{temp_install}/usr/local/lib64/SoapySDR/modules0.8-3" ]; then
+          cp -a "%{temp_install}/usr/local/lib64/SoapySDR/modules0.8-3"/* %{buildroot}/usr/local/lib64/SoapySDR/modules0.8-3/ 2>/dev/null || true
+        fi
 
-BuildRequires:  gcc-c++, cmake
-%if 0%{?suse_version}
-BuildRequires:  pkgconfig, libusb-1_0-devel, soapy-sdr-devel
-Requires:       libusb-1_0-0, soapy-sdr, hydrasdr-host-tools >= 1.0.0
-%else
-BuildRequires:  pkg-config, libusb1-devel, SoapySDR-devel
-Requires:       libusb1, SoapySDR, hydrasdr-host-tools >= 1.0.0
-%endif
-
-%description
-SoapySDR driver module for HydraSDR RFOne software-defined radio hardware.
-Provides seamless integration with SoapySDR ecosystem and applications.
-
-Built for: %{distname}
-LibHydraSDR version: %{rfone_version}
-
-%prep
-# No prep needed for binary package
-
-%build
-# No build needed for binary package
-
-%install
-rm -rf %{buildroot}
-mkdir -p %{buildroot}/usr/lib64/SoapySDR/modules0.8
-mkdir -p %{buildroot}/usr/local/lib64/SoapySDR/modules0.8-3
-
-# Copy files from temporary install location (both package and source-built paths)
-if [ -d "%{temp_install}/usr/lib64/SoapySDR/modules0.8" ]; then
-  cp -a "%{temp_install}/usr/lib64/SoapySDR/modules0.8"/* %{buildroot}/usr/lib64/SoapySDR/modules0.8/ 2>/dev/null || true
-fi
-if [ -d "%{temp_install}/usr/local/lib64/SoapySDR/modules0.8-3" ]; then
-  cp -a "%{temp_install}/usr/local/lib64/SoapySDR/modules0.8-3"/* %{buildroot}/usr/local/lib64/SoapySDR/modules0.8-3/ 2>/dev/null || true
-fi
-
-%files
-%defattr(-,root,root,-)
-/usr/lib64/SoapySDR/modules0.8/*
-/usr/local/lib64/SoapySDR/modules0.8-3/*
-
-%post
-/sbin/ldconfig
-if command -v SoapySDRUtil >/dev/null 2>&1; then
-  SoapySDRUtil --info >/dev/null 2>&1 || true
-fi
-
-%postun
-/sbin/ldconfig
-
-%changelog
-* Tue Jul 30 2024 Benjamin Vernoux <bvernoux@hydrasdr.com> - %{version}-1
-- Automated build from CI for %{distname}
-- Built with LibHydraSDR %{rfone_version}
-- Fixed: No longer bundles libhydrasdr.so (depends on hydrasdr-host-tools)
-EOF
+        %files
+        %defattr(-,root,root,-)
+        /usr/lib64/SoapySDR/modules0.8/*
+        /usr/local/lib64/SoapySDR/modules0.8-3/*
+        
+        %post
+        /sbin/ldconfig
+        if command -v SoapySDRUtil >/dev/null 2>&1; then
+          SoapySDRUtil --info >/dev/null 2>&1 || true
+        fi
+        
+        %postun
+        /sbin/ldconfig
+        
+        %changelog
+        * Tue Jul 30 2024 Benjamin Vernoux <bvernoux@hydrasdr.com> - %{version}-1
+        - Automated build from CI for %{distname}
+        - Built with LibHydraSDR %{rfone_version}
+        - Fixed: No longer bundles libhydrasdr.so (depends on hydrasdr-host-tools)
+        EOF
         
         # Build RPM with RPATH checking disabled and variable substitution
         cd ${RPM_BUILD_ROOT}/SPECS
