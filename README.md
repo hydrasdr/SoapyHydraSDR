@@ -13,37 +13,184 @@ Provides seamless integration with the SoapySDR ecosystem and applications like 
 
 ### Option 1: Pre-built Packages (Recommended)
 
-Download the latest packages from the [Releases](https://github.com/hydrasdr/SoapyHydraSDR/releases) page.
+Pre-built packages are available for multiple platforms. You need to install three components:
+1. **SoapySDR** - The SDR abstraction library
+2. **hydrasdr-host-tools** - HydraSDR host library and tools (provides libhydrasdr)
+3. **soapyhydrasdr** - This SoapySDR module
 
-**Debian/Ubuntu/Mint (.deb):**
+**Download packages from:**
+- **hydrasdr-host-tools**: https://github.com/hydrasdr/rfone_host/releases
+- **soapyhydrasdr**: https://github.com/hydrasdr/SoapyHydraSDR/releases
+
+#### Debian / Ubuntu / Linux Mint
+
 ```bash
-sudo dpkg -i soapyhydrasdr-*.deb
+# Step 1: Install SoapySDR from distribution packages
+sudo apt-get update
+sudo apt-get install -y libsoapysdr0.8 libsoapysdr-dev soapysdr-tools
+
+# Step 2: Download and install hydrasdr-host-tools
+# Download the appropriate .deb for your distro from: https://github.com/hydrasdr/rfone_host/releases
+sudo dpkg -i hydrasdr-host-tools-<your-distro>-*.deb
 sudo ldconfig
+
+# Step 3: Download and install soapyhydrasdr
+# Download the appropriate .deb for your distro from: https://github.com/hydrasdr/SoapyHydraSDR/releases
+sudo dpkg -i soapyhydrasdr-<your-distro>-*.deb
+sudo ldconfig
+
+# Step 4: Reload udev rules and verify
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+SoapySDRUtil --info
+SoapySDRUtil --find
 ```
 
-**Fedora/RHEL/AlmaLinux (.rpm):**
+**Available .deb packages:**
+| Distribution | Package name pattern |
+|--------------|----------------------|
+| Ubuntu 24.04 LTS | `*-Ubuntu-24.04-LTS-Noble-Numbat-*.deb` |
+| Ubuntu 22.04 LTS | `*-Ubuntu-22.04-LTS-Jammy-Jellyfish-*.deb` |
+| Ubuntu 20.04 LTS | `*-Ubuntu-20.04-LTS-Focal-Fossa-*.deb` |
+| Debian 13 Trixie | `*-Debian-13-Trixie-*.deb` |
+| Debian 12 Bookworm | `*-Debian-12-Bookworm-*.deb` |
+| Debian 11 Bullseye | `*-Debian-11-Bullseye-*.deb` |
+| Linux Mint 22 | `*-Linux-Mint-22-Wilma-*.deb` |
+| Linux Mint 21.x | `*-Linux-Mint-21.*-*.deb` |
+
+#### Fedora
+
 ```bash
-sudo dnf install soapyhydrasdr-*.rpm
+# Step 1: Install SoapySDR from Fedora repositories
+sudo dnf install -y SoapySDR SoapySDR-devel soapysdr-tools
+
+# Step 2: Download and install hydrasdr-host-tools
+# Download the appropriate .rpm for your Fedora version from: https://github.com/hydrasdr/rfone_host/releases
+sudo dnf install ./hydrasdr-host-tools-Fedora-*.rpm
+
+# Step 3: Download and install soapyhydrasdr
+# Download the appropriate .rpm for your Fedora version from: https://github.com/hydrasdr/SoapyHydraSDR/releases
+sudo dnf install ./soapyhydrasdr-Fedora-*.rpm
+
+# Step 4: Reload udev rules and verify
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+SoapySDRUtil --info
+SoapySDRUtil --find
 ```
 
-**openSUSE (.rpm):**
+**Available Fedora .rpm packages:** `*-Fedora-41-*.rpm`, `*-Fedora-42-*.rpm`
+
+#### openSUSE Tumbleweed
+
 ```bash
-sudo zypper install soapyhydrasdr-*.rpm
+# Step 1: Install SoapySDR from openSUSE repositories
+sudo zypper install soapy-sdr soapy-sdr-devel
+
+# Step 2: Download and install hydrasdr-host-tools
+# Download the .rpm from: https://github.com/hydrasdr/rfone_host/releases
+sudo zypper install ./hydrasdr-host-tools-openSUSE-Tumbleweed-*.rpm
+
+# Step 3: Download and install soapyhydrasdr
+# Download the .rpm from: https://github.com/hydrasdr/SoapyHydraSDR/releases
+sudo zypper install ./soapyhydrasdr-openSUSE-Tumbleweed-*.rpm
+
+# Step 4: Reload udev rules and verify
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+SoapySDRUtil --info
+SoapySDRUtil --find
 ```
 
-**macOS (.tar.gz):**
+#### AlmaLinux 9 / RHEL 9
+
 ```bash
-# Extract and copy to SoapySDR modules directory
-tar -xzf soapyhydrasdr-macOS-*.tar.gz
-sudo cp libSoapyHydraSDR.so /usr/local/lib/SoapySDR/modules0.8-3/
+# Step 1: Enable EPEL and install SoapySDR
+sudo dnf install -y epel-release
+sudo dnf config-manager --set-enabled crb
+sudo dnf install -y SoapySDR SoapySDR-devel
+
+# Step 2: Download and install hydrasdr-host-tools
+# Download the .rpm from: https://github.com/hydrasdr/rfone_host/releases
+sudo dnf install ./hydrasdr-host-tools-AlmaLinux-9-*.rpm
+
+# Step 3: Download and install soapyhydrasdr
+# Download the .rpm from: https://github.com/hydrasdr/SoapyHydraSDR/releases
+sudo dnf install ./soapyhydrasdr-AlmaLinux-9-*.rpm
+
+# Step 4: Reload udev rules and verify
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+SoapySDRUtil --info
+SoapySDRUtil --find
+```
+
+#### macOS
+
+```bash
+# Step 1: Install SoapySDR via Homebrew
+brew install soapysdr
+
+# Step 2: Download and extract hydrasdr-host-tools
+# Download from: https://github.com/hydrasdr/rfone_host/releases
+# - Apple Silicon (M1/M2/M3): hydrasdr-host-tools-macOS-ARM64-*.tar.gz
+# - Intel Mac: hydrasdr-host-tools-macOS-x86_64-*.tar.gz
+tar -xzf hydrasdr-host-tools-macOS-*.tar.gz
 sudo cp libhydrasdr.dylib /usr/local/lib/
+sudo cp hydrasdr_* /usr/local/bin/  # optional: command-line tools
+
+# Step 3: Download and extract soapyhydrasdr
+# Download from: https://github.com/hydrasdr/SoapyHydraSDR/releases
+# - Apple Silicon (M1/M2/M3): soapyhydrasdr-macOS-ARM64-*.tar.gz
+# - Intel Mac: soapyhydrasdr-macOS-x86_64-*.tar.gz
+tar -xzf soapyhydrasdr-macOS-*.tar.gz
+
+# Find SoapySDR modules directory and install
+SOAPY_MODULE_DIR=$(SoapySDRUtil --info | grep "Search path" | head -1 | awk '{print $3}')
+sudo mkdir -p "$SOAPY_MODULE_DIR"
+sudo cp libSoapyHydraSDR.so "$SOAPY_MODULE_DIR/"
+
+# Step 4: Verify installation
+SoapySDRUtil --info
+SoapySDRUtil --find
 ```
 
-**Windows (.zip):**
-1. Download and extract the Windows zip from [Releases](https://github.com/hydrasdr/SoapyHydraSDR/releases)
-2. Copy `SoapyHydraSDR.dll` to your SoapySDR modules directory (typically `C:\Program Files\SoapySDR\lib\SoapySDR\modules0.8\`)
-3. Copy `hydrasdr.dll` and other DLLs to the same directory or add to PATH
-4. Connect the HydraSDR device (driver installs automatically via WCID)
+#### Windows
+
+1. **Install SoapySDR** via PothosSDR installer or vcpkg:
+   - **PothosSDR** (includes SoapySDR): https://github.com/pothosware/PothosSDR/releases
+   - Or via vcpkg: `vcpkg install soapysdr:x64-windows`
+
+2. **Download hydrasdr-host-tools**:
+   - Download `hydrasdr-host-tools-Windows-x64-*.zip` from: https://github.com/hydrasdr/rfone_host/releases
+   - Extract the archive
+
+3. **Download soapyhydrasdr**:
+   - Download `soapyhydrasdr-Windows-x64-*.zip` from: https://github.com/hydrasdr/SoapyHydraSDR/releases
+   - Extract the archive
+
+4. **Install files**:
+   ```powershell
+   # Find SoapySDR modules directory (check SoapySDRUtil --info)
+   # Typical locations:
+   #   C:\Program Files\PothosSDR\lib\SoapySDR\modules0.8\
+   #   C:\Program Files\SoapySDR\lib\SoapySDR\modules0.8\
+   
+   # Copy SoapyHydraSDR.dll to SoapySDR modules directory
+   Copy-Item SoapyHydraSDR.dll "C:\Program Files\PothosSDR\lib\SoapySDR\modules0.8\"
+   
+   # Copy hydrasdr.dll and dependencies to the modules directory or add to PATH
+   Copy-Item hydrasdr.dll "C:\Program Files\PothosSDR\lib\SoapySDR\modules0.8\"
+   Copy-Item libusb-1.0.dll "C:\Program Files\PothosSDR\lib\SoapySDR\modules0.8\"
+   ```
+
+5. **Verify installation**:
+   ```powershell
+   SoapySDRUtil --info
+   SoapySDRUtil --find
+   ```
+
+**Note:** HydraSDR RFOne uses WCID for automatic USB driver installation on Windows 10/11.
 
 ### Option 2: Build from Source
 
@@ -110,7 +257,7 @@ C:\vcpkg\vcpkg.exe install soapysdr:x64-windows libusb:x64-windows
 git clone https://github.com/hydrasdr/rfone_host.git
 cd rfone_host
 mkdir build && cd build
-cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake
+cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake -DENABLE_SHARED_LIB=ON
 cmake --build . --config Release
 cmake --install . --config Release
 cd ..\..
@@ -126,7 +273,7 @@ cmake --install . --config Release
 
 ## ABI Compatibility Note
 
-**Important:** SoapySDR uses an ABI (Application Binary Interface) version to ensure module compatibility. The pre-built packages are compiled against **SoapySDR ABI 0.8-3** (source-built version).
+**Important:** SoapySDR uses an ABI (Application Binary Interface) version to ensure module compatibility. The pre-built soapyhydrasdr packages install to multiple module paths for maximum compatibility with both distribution packages and source-built SoapySDR.
 
 If you experience module loading errors like:
 ```
@@ -135,15 +282,17 @@ SoapySDR module ... refuses to load. Check module file permissions and ABI versi
 
 This typically means there's a mismatch between your installed SoapySDR and the module. Solutions:
 
-1. **Build SoapyHydraSDR from source** (see above) - This ensures the module is compiled against your installed SoapySDR version.
+1. **Build SoapyHydraSDR from source** (see Option 2) - This ensures the module is compiled against your exact SoapySDR version.
 
-2. **Build SoapySDR from source** - Distribution packages may have older ABI versions. Building from source ensures compatibility with pre-built SoapyHydraSDR packages.
-
-If you prefer using distribution SoapySDR packages instead of building from source:
-```bash
-sudo apt-get install libsoapysdr0.8 libsoapysdr-dev soapysdr-tools
-# Then build SoapyHydraSDR from source to match your SoapySDR ABI
-```
+2. **Build SoapySDR from source** - If distribution packages cause issues:
+   ```bash
+   git clone https://github.com/pothosware/SoapySDR.git
+   cd SoapySDR && mkdir build && cd build
+   cmake .. -DCMAKE_BUILD_TYPE=Release
+   make -j$(nproc)
+   sudo make install
+   sudo ldconfig
+   ```
 
 ## Verification
 
@@ -221,6 +370,7 @@ sudo usermod -aG plugdev $USER
 1. Ensure all DLLs are in the SoapySDR modules directory or in PATH
 2. Check the module path: `SoapySDRUtil --info`
 3. Typical paths:
+   - `C:\Program Files\PothosSDR\lib\SoapySDR\modules0.8\`
    - `C:\Program Files\SoapySDR\lib\SoapySDR\modules0.8\`
    - `C:\vcpkg\installed\x64-windows\lib\SoapySDR\modules0.8\`
 
