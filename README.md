@@ -172,13 +172,19 @@ Build both SoapySDR and SoapyHydraSDR from source to ensure ABI compatibility. S
 
 ### Device not detected
 1. Ensure the device is connected via USB
-2. Check USB permissions - you may need udev rules:
-   ```bash
-   # Install udev rules from libhydrasdr
-   sudo cp /usr/local/lib/udev/rules.d/53-hydrasdr.rules /etc/udev/rules.d/
+2. Check USB permissions - udev rules must be installed:
+```bash
+   # If you built libhydrasdr from source, rebuild with udev rules:
+   cd rfone_host/build
+   cmake ../ -DINSTALL_UDEV_RULES=ON
+   make
+   sudo make install
    sudo udevadm control --reload-rules
    sudo udevadm trigger
-   ```
+```
+   
+   If using a pre-built package (libhydrasdr0), udev rules should be included automatically.
+
 3. Re-plug the device or log out/in
 
 ### Permission denied (Linux)
