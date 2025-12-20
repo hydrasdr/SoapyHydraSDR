@@ -170,15 +170,15 @@ jobs:
       run: |
         cd rfone_host_src
         mkdir build && cd build
-        
+
         if [ "${{ matrix.platform }}" = "macos" ]; then
           if [ "${{ matrix.arch }}" = "arm64" ]; then
-            cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../../rfone_host_build/install -DCMAKE_OSX_ARCHITECTURES=arm64 -DINSTALL_UDEV_RULES=OFF
+            cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../../rfone_host_build/install -DCMAKE_OSX_ARCHITECTURES=arm64 -DINSTALL_UDEV_RULES=OFF -DENABLE_SHARED_LIB=ON
           else
-            cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../../rfone_host_build/install -DCMAKE_OSX_ARCHITECTURES=x86_64 -DINSTALL_UDEV_RULES=OFF
+            cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../../rfone_host_build/install -DCMAKE_OSX_ARCHITECTURES=x86_64 -DINSTALL_UDEV_RULES=OFF -DENABLE_SHARED_LIB=ON
           fi
         else
-          cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../../rfone_host_build/install -DINSTALL_UDEV_RULES=OFF
+          cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../../rfone_host_build/install -DINSTALL_UDEV_RULES=OFF -DENABLE_SHARED_LIB=ON
         fi
         
         make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
@@ -250,8 +250,7 @@ jobs:
         $depsPthreads = Join-Path $currentDir "..\..\deps\pthreads"
         $installPrefix = Join-Path $currentDir "..\..\rfone_host_build\install"
         
-        cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_INSTALL_PREFIX="$installPrefix" -DLIBUSB_INCLUDE_DIR="$depsLibusb\include\libusb-1.0" -DLIBUSB_LIBRARIES="$depsLibusb\MS64\dll\libusb-1.0.lib" -DTHREADS_PTHREADS_INCLUDE_DIR="$depsPthreads\include" -DTHREADS_PTHREADS_WIN32_LIBRARY="$depsPthreads\lib\x64\pthreadVC2.lib"
-        
+        cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_INSTALL_PREFIX="$installPrefix" -DLIBUSB_INCLUDE_DIR="$depsLibusb\include\libusb-1.0" -DLIBUSB_LIBRARIES="$depsLibusb\MS64\dll\libusb-1.0.lib" -DTHREADS_PTHREADS_INCLUDE_DIR="$depsPthreads\include" -DTHREADS_PTHREADS_WIN32_LIBRARY="$depsPthreads\lib\x64\pthreadVC2.lib" -DENABLE_SHARED_LIB=ON
         cmake --build . --config Release --parallel
         cmake --install . --config Release
         
