@@ -5,7 +5,7 @@
 cmake_minimum_required(VERSION 3.10)
 
 # Project version - UPDATE THIS FOR RELEASES
-set(SOAPYHYDRASDR_VERSION "1.0.0")
+set(SOAPYHYDRASDR_VERSION "1.0.1")
 
 project(SoapyHydraSDR VERSION ${SOAPYHYDRASDR_VERSION} LANGUAGES CXX)
 
@@ -36,18 +36,7 @@ message(STATUS "Found SoapySDR: ${SoapySDR_VERSION}")
 
 # Ensure SoapySDR module directory is set
 if(NOT SOAPY_SDR_MODULE_DIR)
-	# Extract SoapySDR ABI version from full version
-	if(SoapySDR_VERSION)
-		string(REGEX MATCH "^([0-9]+\\.[0-9]+)" SoapySDR_ABI_VERSION "${SoapySDR_VERSION}")
-		message(STATUS "Extracted SoapySDR ABI version: ${SoapySDR_ABI_VERSION}")
-	endif()
-	
-	if(NOT SoapySDR_ABI_VERSION)
-		set(SoapySDR_ABI_VERSION "0.8")  # Fallback version
-		message(STATUS "Using fallback SoapySDR ABI version: ${SoapySDR_ABI_VERSION}")
-	endif()
-	
-	# Try to detect SoapySDR module directory using pkg-config
+	# Try to detect SoapySDR module directory using pkg-config first (most reliable)
 	find_package(PkgConfig QUIET)
 	if(PKG_CONFIG_FOUND)
 		pkg_check_modules(SOAPYSDR_PC QUIET SoapySDR)
@@ -58,35 +47,107 @@ if(NOT SOAPY_SDR_MODULE_DIR)
 				OUTPUT_STRIP_TRAILING_WHITESPACE
 				ERROR_QUIET
 			)
+			if(SOAPY_SDR_MODULE_DIR)
+				message(STATUS "Detected SoapySDR module directory via pkg-config: ${SOAPY_SDR_MODULE_DIR}")
+			endif()
 		endif()
 	endif()
-	
-	# Fallback to common locations if still not found
+
+	# Extract SoapySDR ABI version from module directory or version string
+	if(SOAPY_SDR_MODULE_DIR)
+		# Extract ABI version from the detected module path (e.g., modules0.8-3 -> 0.8-3)
+		string(REGEX MATCH "modules([0-9]+\\.[0-9]+(-[0-9]+)?)" _match "${SOAPY_SDR_MODULE_DIR}")
+		if(_match)
+			set(SoapySDR_ABI_VERSION "${CMAKE_MATCH_1}")
+			message(STATUS "Extracted SoapySDR ABI version from module path: ${SoapySDR_ABI_VERSION}")
+		endif()
+	endif()
+
+	# Fallback: extract ABI version from SoapySDR version string
+	if(NOT SoapySDR_ABI_VERSION AND SoapySDR_VERSION)
+		# For SoapySDR 0.8.x, the ABI version is "0.8-3" for source builds
+		# For SoapySDR 0.8.0 from packages, the ABI version is "0.8"
+		string(REGEX MATCH "^([0-9]+)\\.([0-9]+)\\.([0-9]+)" _version_match "${SoapySDR_VERSION}")
+		if(_version_match)
+			set(_major "${CMAKE_MATCH_1}")
+			set(_minor "${CMAKE_MATCH_2}")
+			set(_patch "${CMAKE_MATCH_3}")
+			# SoapySDR 0.8.1+ uses ABI 0.8-3
+			if("${_major}.${_minor}" STREQUAL "0.8" AND _patch GREATER 0)
+				set(SoapySDR_ABI_VERSION "0.8-3")
+			else()
+				set(SoapySDR_ABI_VERSION "${_major}.${_minor}")
+			endif()
+			message(STATUS "Determined SoapySDR ABI version from version ${SoapySDR_VERSION}: ${SoapySDR_ABI_VERSION}")
+		else()
+			# Simple major.minor extraction as last resort
+			string(REGEX MATCH "^([0-9]+\\.[0-9]+)" SoapySDR_ABI_VERSION "${SoapySDR_VERSION}")
+			message(STATUS "Extracted SoapySDR ABI version: ${SoapySDR_ABI_VERSION}")
+		endif()
+	endif()
+
+	if(NOT SoapySDR_ABI_VERSION)
+		set(SoapySDR_ABI_VERSION "0.8")  # Fallback version
+		message(STATUS "Using fallback SoapySDR ABI version: ${SoapySDR_ABI_VERSION}")
+	endif()
+
+	# Fallback to common locations if module directory not found via pkg-config
 	if(NOT SOAPY_SDR_MODULE_DIR)
 		if(WIN32)
-			set(SOAPY_SDR_MODULE_DIR "lib/SoapySDR/modules${SoapySDR_ABI_VERSION}")
+			# Windows with vcpkg - try to find existing module directory
+			# vcpkg typically uses modules0.8 even for SoapySDR 0.8.1+
+			foreach(POSSIBLE_ABI "0.8" "0.8-3" "${SoapySDR_ABI_VERSION}")
+				set(_test_dir "${CMAKE_PREFIX_PATH}/lib/SoapySDR/modules${POSSIBLE_ABI}")
+				if(EXISTS "${_test_dir}")
+					set(SOAPY_SDR_MODULE_DIR "${_test_dir}")
+					set(SoapySDR_ABI_VERSION "${POSSIBLE_ABI}")
+					message(STATUS "Found Windows SoapySDR module directory: ${SOAPY_SDR_MODULE_DIR}")
+					break()
+				endif()
+			endforeach()
+			# Fallback to relative path with detected ABI version
+			if(NOT SOAPY_SDR_MODULE_DIR)
+				set(SOAPY_SDR_MODULE_DIR "lib/SoapySDR/modules${SoapySDR_ABI_VERSION}")
+			endif()
 		elseif(APPLE)
-			set(SOAPY_SDR_MODULE_DIR "/usr/local/lib/SoapySDR/modules${SoapySDR_ABI_VERSION}")
-		else()
-			# Linux - try common locations
-			foreach(POSSIBLE_DIR 
-				"/usr/lib/x86_64-linux-gnu/SoapySDR/modules${SoapySDR_ABI_VERSION}"
-				"/usr/lib/SoapySDR/modules${SoapySDR_ABI_VERSION}"
-				"/usr/local/lib/SoapySDR/modules${SoapySDR_ABI_VERSION}")
+			# Try multiple paths on macOS
+			foreach(POSSIBLE_DIR
+				"/usr/local/lib/SoapySDR/modules${SoapySDR_ABI_VERSION}"
+				"/usr/local/lib/SoapySDR/modules0.8-3"
+				"/usr/local/lib/SoapySDR/modules0.8"
+				"/opt/homebrew/lib/SoapySDR/modules${SoapySDR_ABI_VERSION}")
 				if(EXISTS "${POSSIBLE_DIR}")
 					set(SOAPY_SDR_MODULE_DIR "${POSSIBLE_DIR}")
 					break()
 				endif()
 			endforeach()
-			
-			# Final fallback
 			if(NOT SOAPY_SDR_MODULE_DIR)
-				set(SOAPY_SDR_MODULE_DIR "/usr/lib/x86_64-linux-gnu/SoapySDR/modules0.8")
+				set(SOAPY_SDR_MODULE_DIR "/usr/local/lib/SoapySDR/modules${SoapySDR_ABI_VERSION}")
+			endif()
+		else()
+			# Linux - try common locations with both ABI versions
+			# Order: source-built paths first (0.8-3), then system package paths (0.8)
+			foreach(POSSIBLE_DIR
+				"/usr/local/lib/SoapySDR/modules${SoapySDR_ABI_VERSION}"
+				"/usr/local/lib/SoapySDR/modules0.8-3"
+				"/usr/local/lib/SoapySDR/modules0.8"
+				"/usr/lib/x86_64-linux-gnu/SoapySDR/modules${SoapySDR_ABI_VERSION}"
+				"/usr/lib/x86_64-linux-gnu/SoapySDR/modules0.8-3"
+				"/usr/lib/x86_64-linux-gnu/SoapySDR/modules0.8"
+				"/usr/lib/SoapySDR/modules${SoapySDR_ABI_VERSION}"
+				"/usr/lib64/SoapySDR/modules${SoapySDR_ABI_VERSION}")
+				if(EXISTS "${POSSIBLE_DIR}")
+					set(SOAPY_SDR_MODULE_DIR "${POSSIBLE_DIR}")
+					break()
+				endif()
+			endforeach()
+
+			# Final fallback - use detected ABI version with /usr/local prefix
+			if(NOT SOAPY_SDR_MODULE_DIR)
+				set(SOAPY_SDR_MODULE_DIR "/usr/local/lib/SoapySDR/modules${SoapySDR_ABI_VERSION}")
 			endif()
 		endif()
 		message(STATUS "SoapySDR module directory not auto-detected, using fallback: ${SOAPY_SDR_MODULE_DIR}")
-	else()
-		message(STATUS "Detected SoapySDR module directory: ${SOAPY_SDR_MODULE_DIR}")
 	endif()
 endif()
 
