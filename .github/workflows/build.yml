@@ -1133,27 +1133,31 @@ jobs:
           USE_CUSTOM_TOPDIR=true
         fi
         
-        # Get SoapySDR module directory
+        # Get SoapySDR module directories - support both package and source-built SoapySDR
+        # See: https://github.com/hydrasdr/SoapyHydraSDR/issues/7
         SOAPY_MODULE_DIR="/usr/lib64/SoapySDR/modules0.8"
+        SOAPY_LOCAL_DIR="/usr/local/lib64/SoapySDR/modules0.8-3"
         LIBDIR="/usr/lib64"
-        
+
         # Create temporary build structure
         BUILD_ROOT="${RPM_BUILD_ROOT}/BUILD/${PACKAGE_NAME_FULL}-${PACKAGE_VERSION}"
         mkdir -p "${BUILD_ROOT}"
-        
+
         # Copy built files to temporary location for packaging
         TEMP_INSTALL_DIR="${BUILD_ROOT}/temp_install"
         mkdir -p "${TEMP_INSTALL_DIR}${SOAPY_MODULE_DIR}"
+        mkdir -p "${TEMP_INSTALL_DIR}${SOAPY_LOCAL_DIR}"
         mkdir -p "${TEMP_INSTALL_DIR}${LIBDIR}"
-        
-        # Copy SoapySDR module and strip problematic RPATHs
+
+        # Copy SoapySDR module to both paths and strip problematic RPATHs
         find "${BUILD_DIR}/build" -name "*SoapyHydraSDR*" -type f -exec cp {} "${TEMP_INSTALL_DIR}${SOAPY_MODULE_DIR}/" \; 2>/dev/null || echo "No SoapyHydraSDR module found"
+        find "${BUILD_DIR}/build" -name "*SoapyHydraSDR*" -type f -exec cp {} "${TEMP_INSTALL_DIR}${SOAPY_LOCAL_DIR}/" \; 2>/dev/null || true
         
-        # Strip RPATHs from SoapySDR module to avoid packaging issues
+        # Strip RPATHs from SoapySDR modules to avoid packaging issues
         if command -v chrpath >/dev/null 2>&1; then
-          find "${TEMP_INSTALL_DIR}${SOAPY_MODULE_DIR}" -name "*.so" -exec chrpath -d {} \; 2>/dev/null || true
+          find "${TEMP_INSTALL_DIR}" -name "*.so" -exec chrpath -d {} \; 2>/dev/null || true
         elif command -v patchelf >/dev/null 2>&1; then
-          find "${TEMP_INSTALL_DIR}${SOAPY_MODULE_DIR}" -name "*.so" -exec patchelf --remove-rpath {} \; 2>/dev/null || true
+          find "${TEMP_INSTALL_DIR}" -name "*.so" -exec patchelf --remove-rpath {} \; 2>/dev/null || true
         fi
         
         # Copy libhydrasdr
@@ -1199,19 +1203,24 @@ jobs:
         %install
         rm -rf %{buildroot}
         mkdir -p %{buildroot}/usr/lib64/SoapySDR/modules0.8
+        mkdir -p %{buildroot}/usr/local/lib64/SoapySDR/modules0.8-3
         mkdir -p %{buildroot}/usr/lib64
-        
-        # Copy files from temporary install location
+
+        # Copy files from temporary install location (both package and source-built paths)
         if [ -d "%{temp_install}/usr/lib64/SoapySDR/modules0.8" ]; then
           cp -a "%{temp_install}/usr/lib64/SoapySDR/modules0.8"/* %{buildroot}/usr/lib64/SoapySDR/modules0.8/ 2>/dev/null || true
+        fi
+        if [ -d "%{temp_install}/usr/local/lib64/SoapySDR/modules0.8-3" ]; then
+          cp -a "%{temp_install}/usr/local/lib64/SoapySDR/modules0.8-3"/* %{buildroot}/usr/local/lib64/SoapySDR/modules0.8-3/ 2>/dev/null || true
         fi
         if [ -d "%{temp_install}/usr/lib64" ]; then
           find "%{temp_install}/usr/lib64" -name "libhydrasdr.so*" -exec cp {} %{buildroot}/usr/lib64/ \; 2>/dev/null || true
         fi
-        
+
         %files
         %defattr(-,root,root,-)
         /usr/lib64/SoapySDR/modules0.8/*
+        /usr/local/lib64/SoapySDR/modules0.8-3/*
         /usr/lib64/libhydrasdr.so*
         
         %post
