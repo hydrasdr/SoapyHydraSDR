@@ -74,7 +74,7 @@ cd ../..
 rm -rf rfone_host
 git clone https://github.com/hydrasdr/rfone_host.git
 cd rfone_host && mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release -DENABLE_SHARED_LIB=ON
+cmake .. -DCMAKE_BUILD_TYPE=Release -DENABLE_SHARED_LIB=ON -DINSTALL_UDEV_RULES=ON
 make -j$(nproc)
 sudo make install
 sudo ldconfig
@@ -139,6 +139,12 @@ This typically means there's a mismatch between your installed SoapySDR and the 
 
 2. **Build SoapySDR from source** - Distribution packages may have older ABI versions. Building from source ensures compatibility with pre-built SoapyHydraSDR packages.
 
+If you prefer using distribution SoapySDR packages instead of building from source:
+```bash
+sudo apt-get install libsoapysdr0.8 libsoapysdr-dev soapysdr-tools
+# Then build SoapyHydraSDR from source to match your SoapySDR ABI
+```
+
 ## Verification
 
 After installation, verify the module is detected:
@@ -172,20 +178,31 @@ Build both SoapySDR and SoapyHydraSDR from source to ensure ABI compatibility. S
 
 ### Device not detected
 1. Ensure the device is connected via USB
+
 2. Check USB permissions - udev rules must be installed:
-```bash
-   # If you built libhydrasdr from source, rebuild with udev rules:
+
+   **If using pre-built packages:** udev rules are included automatically. Just reload and replug:
+   ```bash
+   sudo udevadm control --reload-rules
+   sudo udevadm trigger
+   ```
+
+   **If built from source:** ensure you built libhydrasdr with udev rules enabled:
+   ```bash
    cd rfone_host/build
-   cmake ../ -DINSTALL_UDEV_RULES=ON
+   cmake .. -DINSTALL_UDEV_RULES=ON
    make
    sudo make install
    sudo udevadm control --reload-rules
    sudo udevadm trigger
-```
-   
-   If using a pre-built package (libhydrasdr0), udev rules should be included automatically.
+   ```
 
-3. Re-plug the device or log out/in
+3. Verify udev rules are installed:
+   ```bash
+   ls -la /etc/udev/rules.d/*hydrasdr*
+   ```
+
+4. Re-plug the device or log out/in
 
 ### Permission denied (Linux)
 Add your user to the `plugdev` group:
