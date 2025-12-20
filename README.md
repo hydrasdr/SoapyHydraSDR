@@ -2,7 +2,7 @@
 
 SoapySDR driver module for HydraSDR RFOne software-defined radio hardware.
 
-Provides seamless integration with the SoapySDR ecosystem and applications like GQRX, SDR++, GNU Radio, and more.
+Provides seamless integration with the SoapySDR ecosystem and applications like GQRX, CubicSDR, GNU Radio, and more.
 
 ## Dependencies
 
