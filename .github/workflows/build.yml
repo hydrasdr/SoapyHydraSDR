@@ -100,8 +100,21 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y build-essential cmake pkg-config libusb-1.0-0-dev
         
-        # Install SoapySDR development packages
-        sudo apt-get install -y libsoapysdr-dev soapysdr-tools
+        # Build SoapySDR from source to get ABI 0.8-3 (apt package has ABI 0.8)
+        # This ensures compatibility with users who build SoapySDR from source
+        # See: https://github.com/hydrasdr/SoapyHydraSDR/issues/7
+        echo "Building SoapySDR from source for ABI 0.8-3 compatibility..."
+        git clone https://github.com/pothosware/SoapySDR.git /tmp/SoapySDR
+        cd /tmp/SoapySDR
+        mkdir build && cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local
+        make -j$(nproc)
+        sudo make install
+        sudo ldconfig
+        
+        # Verify SoapySDR ABI version
+        echo "Installed SoapySDR version:"
+        SoapySDRUtil --info | head -10
 
     - name: Install macOS dependencies
       if: matrix.platform == 'macos'
@@ -472,20 +485,23 @@ jobs:
         Section: electronics
         Priority: optional
         Architecture: ${ARCH}
-        Depends: libsoapysdr0.8 (>= 0.8), libusb-1.0-0 (>= 1.0.20)
+        Depends: libusb-1.0-0 (>= 1.0.20)
+        Recommends: soapysdr-tools
         Maintainer: ${{ env.MAINTAINER }}
-        Description: SoapySDR module for HydraSDR RFOne devices
+        Description: SoapySDR module for HydraSDR RFOne devices (ABI 0.8-3)
          SoapySDR driver module for HydraSDR RFOne software-defined radio hardware.
          Provides seamless integration with SoapySDR ecosystem and applications.
          .
+         IMPORTANT: This module is built against SoapySDR ABI 0.8-3.
+         For best compatibility, build SoapySDR from source:
+           git clone https://github.com/pothosware/SoapySDR.git
+           cd SoapySDR && mkdir build && cd build
+           cmake .. && make -j\$(nproc) && sudo make install
+         .
          This package includes:
-          - SoapySDR module for HydraSDR RFOne
+          - SoapySDR module for HydraSDR RFOne (ABI 0.8-3)
           - LibHydraSDR shared library
           - Automatic device detection and configuration
-          - Full streaming and control support
-         .
-         The module is installed to multiple common SoapySDR paths for compatibility
-         with both system-installed and source-built SoapySDR installations.
          .
          Built for: ${{ matrix.name }}
          LibHydraSDR version: ${{ needs.extract-version.outputs.rfone_version }}
@@ -733,55 +749,66 @@ jobs:
       matrix:
         include:
           # Ubuntu LTS Versions
+          # Note: We build SoapySDR from source to get ABI 0.8-3 compatibility
+          # See: https://github.com/hydrasdr/SoapyHydraSDR/issues/7
           - container: "ubuntu:22.04"
             name: "Ubuntu-22.04-LTS-Jammy-Jellyfish"
             pkg_manager: "apt"
             create_deb: true
-            deps: "build-essential cmake pkg-config libusb-1.0-0-dev libsoapysdr-dev wget curl ca-certificates"
+            build_soapysdr: true
+            deps: "build-essential cmake pkg-config libusb-1.0-0-dev git wget curl ca-certificates"
           - container: "ubuntu:20.04"
             name: "Ubuntu-20.04-LTS-Focal-Fossa"
             pkg_manager: "apt"
             create_deb: true
-            deps: "build-essential cmake pkg-config libusb-1.0-0-dev libsoapysdr-dev wget curl ca-certificates"
+            build_soapysdr: true
+            deps: "build-essential cmake pkg-config libusb-1.0-0-dev git wget curl ca-certificates"
           
           # Debian Stable/Testing
           - container: "debian:trixie"
             name: "Debian-13-Trixie"
             pkg_manager: "apt"
             create_deb: true
-            deps: "build-essential cmake pkg-config libusb-1.0-0-dev libsoapysdr-dev wget curl ca-certificates"
+            build_soapysdr: true
+            deps: "build-essential cmake pkg-config libusb-1.0-0-dev git wget curl ca-certificates"
           - container: "debian:bookworm"
             name: "Debian-12-Bookworm"
             pkg_manager: "apt"
             create_deb: true
-            deps: "build-essential cmake pkg-config libusb-1.0-0-dev libsoapysdr-dev wget curl ca-certificates"
+            build_soapysdr: true
+            deps: "build-essential cmake pkg-config libusb-1.0-0-dev git wget curl ca-certificates"
           - container: "debian:bullseye"
             name: "Debian-11-Bullseye"
             pkg_manager: "apt"
             create_deb: true
-            deps: "build-essential cmake pkg-config libusb-1.0-0-dev libsoapysdr-dev wget curl ca-certificates"
+            build_soapysdr: true
+            deps: "build-essential cmake pkg-config libusb-1.0-0-dev git wget curl ca-certificates"
           
           # Linux Mint Versions (Ubuntu-based)
           - container: "linuxmintd/mint22-amd64:latest"
             name: "Linux-Mint-22-Wilma"
             pkg_manager: "apt"
             create_deb: true
-            deps: "build-essential cmake pkg-config libusb-1.0-0-dev libsoapysdr-dev wget curl ca-certificates"
+            build_soapysdr: true
+            deps: "build-essential cmake pkg-config libusb-1.0-0-dev git wget curl ca-certificates"
           - container: "linuxmintd/mint21.3-amd64:latest"
             name: "Linux-Mint-21.3-Virginia"
             pkg_manager: "apt"
             create_deb: true
-            deps: "build-essential cmake pkg-config libusb-1.0-0-dev libsoapysdr-dev wget curl ca-certificates"
+            build_soapysdr: true
+            deps: "build-essential cmake pkg-config libusb-1.0-0-dev git wget curl ca-certificates"
           - container: "linuxmintd/mint21.2-amd64:latest"
             name: "Linux-Mint-21.2-Victoria"
             pkg_manager: "apt"
             create_deb: true
-            deps: "build-essential cmake pkg-config libusb-1.0-0-dev libsoapysdr-dev wget curl ca-certificates"
+            build_soapysdr: true
+            deps: "build-essential cmake pkg-config libusb-1.0-0-dev git wget curl ca-certificates"
           - container: "linuxmintd/mint21.1-amd64:latest"
             name: "Linux-Mint-21.1-Vera"
             pkg_manager: "apt"
             create_deb: true
-            deps: "build-essential cmake pkg-config libusb-1.0-0-dev libsoapysdr-dev wget curl ca-certificates"
+            build_soapysdr: true
+            deps: "build-essential cmake pkg-config libusb-1.0-0-dev git wget curl ca-certificates"
           
           # Fedora Latest Versions
           - container: "fedora:42"
@@ -890,6 +917,26 @@ jobs:
             ;;
         esac
 
+    # === Build SoapySDR from source for ABI 0.8-3 compatibility ===
+    # This is required for Debian/Ubuntu because apt packages have older ABI 0.8
+    # Users who build SoapySDR from source get ABI 0.8-3
+    # See: https://github.com/hydrasdr/SoapyHydraSDR/issues/7
+    - name: Build SoapySDR from source
+      if: matrix.build_soapysdr == true
+      run: |
+        echo "Building SoapySDR from source for ABI 0.8-3 compatibility..."
+        git clone https://github.com/pothosware/SoapySDR.git /tmp/SoapySDR
+        cd /tmp/SoapySDR
+        mkdir build && cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local
+        make -j$(nproc)
+        make install
+        ldconfig
+        
+        # Verify SoapySDR ABI version
+        echo "=== Installed SoapySDR version ==="
+        SoapySDRUtil --info | head -10
+
     # === Build LibHydraSDR ===
     - name: Build LibHydraSDR
       run: |
@@ -997,11 +1044,13 @@ jobs:
         Section: electronics
         Priority: optional
         Architecture: ${ARCH}
-        Depends: libsoapysdr0.8, libusb-1.0-0 (>= 1.0.20)
+        Depends: libusb-1.0-0 (>= 1.0.20)
+        Recommends: soapysdr-tools
         Maintainer: ${{ env.MAINTAINER }}
-        Description: SoapySDR module for HydraSDR RFOne devices (${{ matrix.name }})
+        Description: SoapySDR module for HydraSDR RFOne devices (ABI 0.8-3)
          SoapySDR driver module for HydraSDR RFOne software-defined radio hardware.
-         Module installed to multiple paths for compatibility with different SoapySDR installations.
+         Built against SoapySDR ABI 0.8-3 for source-built SoapySDR compatibility.
+         For best results, build SoapySDR from source (https://github.com/pothosware/SoapySDR).
          Built for: ${{ matrix.name }}
          LibHydraSDR version: ${{ needs.extract-version.outputs.rfone_version }}
         Homepage: ${{ env.HOMEPAGE }}
@@ -1397,10 +1446,18 @@ jobs:
 
         **Key Features:**
         - Built with latest LibHydraSDR (${{ needs.extract-version.outputs.rfone_version }}) from source
+        - **Built against SoapySDR ABI 0.8-3** for compatibility with source-built SoapySDR
         - No hardcoded dependencies - always uses latest HydraSDR host libraries
         - Full SoapySDR integration for all compatible applications
         - Multi-platform native packages with automatic dependency management
         - Comprehensive distribution support
-        - **Fixed:** Module now installs to multiple SoapySDR paths for compatibility with both system and source-built installations
+        - Module installs to multiple SoapySDR paths for maximum compatibility
+
+        **Important:** For best compatibility, build SoapySDR from source:
+        \`\`\`bash
+        git clone https://github.com/pothosware/SoapySDR.git
+        cd SoapySDR && mkdir build && cd build
+        cmake .. && make -j\$(nproc) && sudo make install && sudo ldconfig
+        \`\`\`
 
         For detailed installation instructions and usage information, see the project README."
