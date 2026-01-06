@@ -10,7 +10,7 @@ Build-Depends:
 Standards-Version: 4.5.0
 Homepage: https://github.com/hydrasdr/SoapyHydraSDR
 
-Package: soapysdr0.7-module-hydrasdr
+Package: soapysdr0.8-module-hydrasdr
 Architecture: any
 Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}
@@ -19,7 +19,7 @@ Description: HydraSDR device support for SoapySDR
 
 Package: soapysdr-module-hydrasdr
 Architecture: all
-Depends: soapysdr0.7-module-hydrasdr, ${misc:Depends}
+Depends: soapysdr0.8-module-hydrasdr, ${misc:Depends}
 Description: HydraSDR device support for SoapySDR (default version)
  The Soapy HydraSDR project provides a SoapySDR hardware support module.
  .
