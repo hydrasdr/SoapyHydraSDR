@@ -328,14 +328,18 @@ jobs:
       run: |
         mkdir build && cd build
         
+        # Get absolute path to LibHydraSDR installation
+        LIBHYDRASDR_PREFIX="$(cd ../hydrasdr_host_build/install && pwd)"
+        echo "Using LibHydraSDR from: $LIBHYDRASDR_PREFIX"
+        
         if [ "${{ matrix.platform }}" = "macos" ]; then
           if [ "${{ matrix.arch }}" = "arm64" ]; then
-            cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64
+            cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_PREFIX_PATH="$LIBHYDRASDR_PREFIX" -DLIBHYDRASDR_ROOT="$LIBHYDRASDR_PREFIX"
           else
-            cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=x86_64
+            cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_PREFIX_PATH="$LIBHYDRASDR_PREFIX" -DLIBHYDRASDR_ROOT="$LIBHYDRASDR_PREFIX"
           fi
         else
-          cmake .. -DCMAKE_BUILD_TYPE=Release
+          cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$LIBHYDRASDR_PREFIX" -DLIBHYDRASDR_ROOT="$LIBHYDRASDR_PREFIX"
         fi
 
     - name: Configure SoapyHydraSDR build (Windows)
@@ -982,7 +986,12 @@ jobs:
     - name: Configure and build SoapyHydraSDR
       run: |
         mkdir build && cd build
-        cmake .. -DCMAKE_BUILD_TYPE=Release
+        
+        # Get absolute path to LibHydraSDR installation
+        LIBHYDRASDR_PREFIX="$(cd ../hydrasdr_host_build/install && pwd)"
+        echo "Using LibHydraSDR from: $LIBHYDRASDR_PREFIX"
+        
+        cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$LIBHYDRASDR_PREFIX" -DLIBHYDRASDR_ROOT="$LIBHYDRASDR_PREFIX"
         make -j$(nproc)
 
     # === Package Artifacts ===
