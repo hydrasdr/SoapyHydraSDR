@@ -1,3 +1,10 @@
+soapyhydrasdr (1.0.1-1) unstable; urgency=medium
+
+  * New upstream master
+  * Changed SoapySDR ABI version from 0.7 to 0.8
+
+ -- Daniel Ekman <knegge@gmail.com>  Tue, 06 Jan 2026 21:25:11 +0100
+
 soapyhydrasdr (1.0.0-1) unstable; urgency=medium
 
   * New upstream master
