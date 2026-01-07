@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
-      rfone_version: ${{ steps.rfone_version.outputs.version }}
+      hydrasdr_host_version: ${{ steps.hydrasdr_host_version.outputs.version }}
     steps:
     - uses: actions/checkout@v4
     - name: Extract SoapyHydraSDR version
@@ -37,13 +37,12 @@ jobs:
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "Extracted SoapyHydraSDR version: $VERSION"
     
-    - name: Get latest rfone_host release
-      id: rfone_version
-      run: |
-        RFONE_VERSION=$(curl -s https://api.github.com/repos/hydrasdr/rfone_host/releases/latest | jq -r .tag_name)
-        echo "version=$RFONE_VERSION" >> $GITHUB_OUTPUT
-        echo "Latest rfone_host version: $RFONE_VERSION"
-
+    - name: Get latest hydrasdr-host release
+      id: hydrasdr_host_version
+      run: |       
+        HYDRASDR_HOST_VERSION=$(curl -s https://api.github.com/repos/hydrasdr/hydrasdr-host/releases/latest | jq -r .tag_name)
+        echo "version=$HYDRASDR_HOST_VERSION" >> $GITHUB_OUTPUT
+        echo "Latest rfone_host version: $HYDRASDR_HOST_VERSION"
   build:
     needs: extract-version
     runs-on: ${{ matrix.os }}
@@ -74,19 +73,19 @@ jobs:
     - uses: actions/checkout@v4
 
     # === Download and Build LibHydraSDR from Source ===
-    - name: Download rfone_host source
+    - name: Download hydrasdr-host source
       uses: actions/checkout@v4
       with:
-        repository: hydrasdr/rfone_host
-        ref: ${{ needs.extract-version.outputs.rfone_version }}
-        path: rfone_host_src
+        repository: hydrasdr/hydrasdr-host
+        ref: ${{ needs.extract-version.outputs.hydrasdr_host_version }}
+        path: hydrasdr_host_src
 
-    - name: Verify rfone_host source download
+    - name: Verify hydrasdr-host source download
       run: |
-        echo "Verifying rfone_host source download..."
-        if [ -d rfone_host_src ]; then
-          echo "Source code downloaded successfully to rfone_host_src/"
-          ls -la rfone_host_src/ | head -10
+        echo "Verifying hydrasdr-host source download..."
+        if [ -d hydrasdr_host_src ]; then
+          echo "Source code downloaded successfully to hydrasdr_host_src/"
+          ls -la hydrasdr_host_src/ | head -10
         else
           echo "Failed to download source code"
           exit 1
@@ -168,17 +167,17 @@ jobs:
     - name: Build LibHydraSDR (Linux/macOS)
       if: matrix.platform != 'windows'
       run: |
-        cd rfone_host_src
+        cd hydrasdr_host_src
         mkdir build && cd build
         
         if [ "${{ matrix.platform }}" = "macos" ]; then
           if [ "${{ matrix.arch }}" = "arm64" ]; then
-            cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../../rfone_host_build/install -DCMAKE_OSX_ARCHITECTURES=arm64 -DINSTALL_UDEV_RULES=OFF -DENABLE_SHARED_LIB=ON
+            cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../../hydrasdr_host_build/install -DCMAKE_OSX_ARCHITECTURES=arm64 -DINSTALL_UDEV_RULES=OFF -DENABLE_SHARED_LIB=ON
           else
-            cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../../rfone_host_build/install -DCMAKE_OSX_ARCHITECTURES=x86_64 -DINSTALL_UDEV_RULES=OFF -DENABLE_SHARED_LIB=ON
+            cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../../hydrasdr_host_build/install -DCMAKE_OSX_ARCHITECTURES=x86_64 -DINSTALL_UDEV_RULES=OFF -DENABLE_SHARED_LIB=ON
           fi
         else
-          cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../../rfone_host_build/install -DINSTALL_UDEV_RULES=OFF -DENABLE_SHARED_LIB=ON
+          cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../../hydrasdr_host_build/install -DINSTALL_UDEV_RULES=OFF -DENABLE_SHARED_LIB=ON
         fi
         
         make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
@@ -187,16 +186,16 @@ jobs:
         # Verify installation
         echo "=== Verifying LibHydraSDR installation ==="
         # Check lib directory (lib or lib64 depending on distro)
-        if [ -d "../../rfone_host_build/install/lib" ]; then
-          LIBDIR="../../rfone_host_build/install/lib"
-        elif [ -d "../../rfone_host_build/install/lib64" ]; then
-          LIBDIR="../../rfone_host_build/install/lib64"
+        if [ -d "../../hydrasdr_host_build/install/lib" ]; then
+          LIBDIR="../../hydrasdr_host_build/install/lib"
+        elif [ -d "../../hydrasdr_host_build/install/lib64" ]; then
+          LIBDIR="../../hydrasdr_host_build/install/lib64"
         else
           echo "No lib or lib64 directory found"
           exit 1
         fi
         ls -la "$LIBDIR"
-        ls -la ../../rfone_host_build/install/include/ || echo "No include directory found"
+        ls -la ../../hydrasdr_host_build/install/include/ || echo "No include directory found"
         
         # Check for specific files based on platform
         if [ "${{ matrix.platform }}" = "macos" ]; then
@@ -216,13 +215,13 @@ jobs:
         else
           echo "✗ $(basename $EXPECTED_LIB) not found"
           echo "Available files in lib directory:"
-          find ../../rfone_host_build/install -name "*hydrasdr*" 2>/dev/null || echo "No hydrasdr files found"
+          find ../../hydrasdr_host_build/install -name "*hydrasdr*" 2>/dev/null || echo "No hydrasdr files found"
           exit 1
         fi
         
         # Check for header file - it might be in libhydrasdr subdirectory
         HEADER_FOUND=false
-        for header_path in "../../rfone_host_build/install/include/hydrasdr.h" "../../rfone_host_build/install/include/libhydrasdr/hydrasdr.h"; do
+        for header_path in "../../hydrasdr_host_build/install/include/hydrasdr.h" "../../hydrasdr_host_build/install/include/libhydrasdr/hydrasdr.h"; do
           if [ -f "$header_path" ]; then
             echo "✓ Found hydrasdr.h at: $header_path"
             HEADER_FOUND=true
@@ -233,7 +232,7 @@ jobs:
         if [ "$HEADER_FOUND" = false ]; then
           echo "✗ hydrasdr.h not found in expected locations"
           echo "Available header files:"
-          find ../../rfone_host_build/install/include -name "*.h" 2>/dev/null || echo "No header files found"
+          find ../../hydrasdr_host_build/install/include -name "*.h" 2>/dev/null || echo "No header files found"
           exit 1
         fi
 
@@ -241,14 +240,14 @@ jobs:
       if: matrix.platform == 'windows'
       shell: powershell
       run: |
-        Set-Location rfone_host_src
+        Set-Location hydrasdr_host_src
         New-Item -ItemType Directory -Path "build" -Force | Out-Null
         Set-Location build
         
         $currentDir = Get-Location
         $depsLibusb = Join-Path $currentDir "..\..\deps\libusb"
         $depsPthreads = Join-Path $currentDir "..\..\deps\pthreads"
-        $installPrefix = Join-Path $currentDir "..\..\rfone_host_build\install"
+        $installPrefix = Join-Path $currentDir "..\..\hydrasdr_host_build\install"
         
         cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_INSTALL_PREFIX="$installPrefix" -DLIBUSB_INCLUDE_DIR="$depsLibusb\include\libusb-1.0" -DLIBUSB_LIBRARIES="$depsLibusb\MS64\dll\libusb-1.0.lib" -DTHREADS_PTHREADS_INCLUDE_DIR="$depsPthreads\include" -DTHREADS_PTHREADS_WIN32_LIBRARY="$depsPthreads\lib\x64\pthreadVC2.lib" -DENABLE_SHARED_LIB=ON
         
@@ -346,7 +345,7 @@ jobs:
         New-Item -ItemType Directory -Path "build" -Force | Out-Null
         Set-Location build
         
-        $installPrefix = Resolve-Path "..\rfone_host_build\install"
+        $installPrefix = Resolve-Path "..\hydrasdr_host_build\install"
         $libhydrasdrLib = Join-Path $installPrefix "bin\hydrasdr.lib"
         $libhydrasdrInclude = Join-Path $installPrefix "include"
         
@@ -402,7 +401,7 @@ jobs:
         find build -name "*SoapyHydraSDR*" -type f -exec cp {} "$ARTIFACT_DIR/" \;
         
         # Copy built libhydrasdr
-        find rfone_host_build/install -name "libhydrasdr.so*" -exec cp {} "$ARTIFACT_DIR/" \; 2>/dev/null || true
+        find hydrasdr_host_build/install -name "libhydrasdr.so*" -exec cp {} "$ARTIFACT_DIR/" \; 2>/dev/null || true
 
     - name: Package artifacts (macOS)
       if: matrix.platform == 'macos'
@@ -414,7 +413,7 @@ jobs:
         find build -name "*SoapyHydraSDR*" -type f -exec cp {} "$ARTIFACT_DIR/" \;
         
         # Copy built libhydrasdr
-        find rfone_host_build/install -name "libhydrasdr.dylib*" -exec cp {} "$ARTIFACT_DIR/" \; 2>/dev/null || true
+        find hydrasdr_host_build/install -name "libhydrasdr.dylib*" -exec cp {} "$ARTIFACT_DIR/" \; 2>/dev/null || true
 
     - name: Package artifacts (Windows)
       if: matrix.platform == 'windows'
@@ -432,11 +431,11 @@ jobs:
         
         # Copy built libhydrasdr and dependencies
         Write-Host "Copying LibHydraSDR dependencies..."
-        if (Test-Path "rfone_host_build\install\bin") {
-          Get-ChildItem "rfone_host_build\install\bin" -Filter "*.dll" | Copy-Item -Destination $dir -ErrorAction SilentlyContinue
+        if (Test-Path "hydrasdr_host_build\install\bin") {
+          Get-ChildItem "hydrasdr_host_build\install\bin" -Filter "*.dll" | Copy-Item -Destination $dir -ErrorAction SilentlyContinue
         }
-        if (Test-Path "rfone_host_build\install\lib") {
-          Get-ChildItem "rfone_host_build\install\lib" -Filter "*.lib" | Copy-Item -Destination $dir -ErrorAction SilentlyContinue
+        if (Test-Path "hydrasdr_host_build\install\lib") {
+          Get-ChildItem "hydrasdr_host_build\install\lib" -Filter "*.lib" | Copy-Item -Destination $dir -ErrorAction SilentlyContinue
         }
         
         Write-Host "Final package contents:"
@@ -588,7 +587,7 @@ jobs:
         ${PACKAGE_NAME_FULL} (${PACKAGE_VERSION}) unstable; urgency=medium
         
           * Automated build from CI for ${{ matrix.name }}
-          * Built with LibHydraSDR ${{ needs.extract-version.outputs.rfone_version }}
+          * Built with LibHydraSDR ${{ needs.extract-version.outputs.hydrasdr_host_version }}
           * Built from commit ${{ github.sha }}
           * Fixed: Module now installs to multiple SoapySDR paths for compatibility
           * Fixed: No longer bundles libhydrasdr.so (depends on hydrasdr-host-tools)
@@ -623,9 +622,9 @@ jobs:
       run: |
         echo "Testing SoapySDR module installation..."
         # Test that libhydrasdr was built correctly
-        export LD_LIBRARY_PATH=rfone_host_build/install/lib:$LD_LIBRARY_PATH
-        export LD_LIBRARY_PATH=rfone_host_build/install/lib64:$LD_LIBRARY_PATH
-        rfone_host_build/install/bin/hydrasdr_lib_version || echo "hydrasdr_lib_version not available"
+        export LD_LIBRARY_PATH=hydrasdr_host_build/install/lib:$LD_LIBRARY_PATH
+        export LD_LIBRARY_PATH=hydrasdr_host_build/install/lib64:$LD_LIBRARY_PATH
+        hydrasdr_host_build/install/bin/hydrasdr_lib_version || echo "hydrasdr_lib_version not available"
         
         # Test that the SoapySDR module can be found
         if command -v SoapySDRUtil >/dev/null 2>&1; then
@@ -650,8 +649,8 @@ jobs:
       run: |
         echo "Testing SoapySDR module installation..."
         # Test that libhydrasdr was built correctly
-        export DYLD_LIBRARY_PATH=rfone_host_build/install/lib:$DYLD_LIBRARY_PATH
-        rfone_host_build/install/bin/hydrasdr_lib_version || echo "hydrasdr_lib_version not available"
+        export DYLD_LIBRARY_PATH=hydrasdr_host_build/install/lib:$DYLD_LIBRARY_PATH
+        hydrasdr_host_build/install/bin/hydrasdr_lib_version || echo "hydrasdr_lib_version not available"
         
         if command -v SoapySDRUtil >/dev/null 2>&1; then
           # Copy module to temporary location for testing
@@ -678,9 +677,9 @@ jobs:
         Write-Host "Testing libhydrasdr..."
         
         # Test libhydrasdr
-        if (Test-Path "rfone_host_build\install\bin\hydrasdr_lib_version.exe") {
+        if (Test-Path "hydrasdr_host_build\install\bin\hydrasdr_lib_version.exe") {
           try {
-            & "rfone_host_build\install\bin\hydrasdr_lib_version.exe"
+            & "hydrasdr_host_build\install\bin\hydrasdr_lib_version.exe"
             Write-Host "LibHydraSDR test completed successfully"
           } catch {
             Write-Host "hydrasdr_lib_version test failed (normal if hardware not connected)"
@@ -837,20 +836,20 @@ jobs:
     - uses: actions/checkout@v4
 
     # === Download and Build LibHydraSDR from Source ===
-    - name: Download rfone_host source
+    - name: Download hydrasdr-host source
       uses: actions/checkout@v4
       with:
-        repository: hydrasdr/rfone_host
-        ref: ${{ needs.extract-version.outputs.rfone_version }}
-        path: rfone_host_src
+        repository: hydrasdr/hydrasdr-host
+        ref: ${{ needs.extract-version.outputs.hydrasdr_host_version }}
+        path: hydrasdr_host_src
 
-    - name: Verify rfone_host source download
+    - name: Verify hydrasdr-host source download
       shell: bash
       run: |
-        echo "Verifying rfone_host source download..."
-        if [ -d rfone_host_src ]; then
-          echo "Source code downloaded successfully to rfone_host_src/"
-          ls -la rfone_host_src/ | head -10
+        echo "Verifying hydrasdr-host source download..."
+        if [ -d hydrasdr_host_src ]; then
+          echo "Source code downloaded successfully to hydrasdr_host_src/"
+          ls -la hydrasdr_host_src/ | head -10
         else
           echo "Failed to download source code"
           exit 1
@@ -926,25 +925,25 @@ jobs:
     # === Build LibHydraSDR ===
     - name: Build LibHydraSDR
       run: |
-        cd rfone_host_src
+        cd hydrasdr_host_src
         mkdir build && cd build
-        cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../../rfone_host_build/install -DINSTALL_UDEV_RULES=OFF -DENABLE_SHARED_LIB=ON
+        cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../../hydrasdr_host_build/install -DINSTALL_UDEV_RULES=OFF -DENABLE_SHARED_LIB=ON
         make -j$(nproc)
         make install
         
         # Verify installation
         echo "=== Verifying LibHydraSDR installation ==="
         # Check lib directory (lib or lib64 depending on distro)
-        if [ -d "../../rfone_host_build/install/lib" ]; then
-          LIBDIR="../../rfone_host_build/install/lib"
-        elif [ -d "../../rfone_host_build/install/lib64" ]; then
-          LIBDIR="../../rfone_host_build/install/lib64"
+        if [ -d "../../hydrasdr_host_build/install/lib" ]; then
+          LIBDIR="../../hydrasdr_host_build/install/lib"
+        elif [ -d "../../hydrasdr_host_build/install/lib64" ]; then
+          LIBDIR="../../hydrasdr_host_build/install/lib64"
         else
           echo "No lib or lib64 directory found"
           exit 1
         fi
         ls -la "$LIBDIR"
-        ls -la ../../rfone_host_build/install/include/ || echo "No include directory found"
+        ls -la ../../hydrasdr_host_build/install/include/ || echo "No include directory found"
         
         # Check for specific files
         if [ -f "$LIBDIR/libhydrasdr.so" ]; then
@@ -958,13 +957,13 @@ jobs:
         else
           echo "✗ libhydrasdr.so not found"
           echo "Available files in lib directory:"
-          find ../../rfone_host_build/install -name "*hydrasdr*" 2>/dev/null || echo "No hydrasdr files found"
+          find ../../hydrasdr_host_build/install -name "*hydrasdr*" 2>/dev/null || echo "No hydrasdr files found"
           exit 1
         fi
         
         # Check for header file - it might be in libhydrasdr subdirectory
         HEADER_FOUND=false
-        for header_path in "../../rfone_host_build/install/include/hydrasdr.h" "../../rfone_host_build/install/include/libhydrasdr/hydrasdr.h"; do
+        for header_path in "../../hydrasdr_host_build/install/include/hydrasdr.h" "../../hydrasdr_host_build/install/include/libhydrasdr/hydrasdr.h"; do
           if [ -f "$header_path" ]; then
             echo "✓ Found hydrasdr.h at: $header_path"
             HEADER_FOUND=true
@@ -975,7 +974,7 @@ jobs:
         if [ "$HEADER_FOUND" = false ]; then
           echo "✗ hydrasdr.h not found in expected locations"
           echo "Available header files:"
-          find ../../rfone_host_build/install/include -name "*.h" 2>/dev/null || echo "No header files found"
+          find ../../hydrasdr_host_build/install/include -name "*.h" 2>/dev/null || echo "No header files found"
           exit 1
         fi
 
@@ -992,7 +991,7 @@ jobs:
         ARTIFACT_DIR="${{ env.PACKAGE_NAME }}-${{ matrix.name }}-v${{ needs.extract-version.outputs.version }}"
         mkdir -p "$ARTIFACT_DIR"
         find build -name "*SoapyHydraSDR*" -type f -exec cp {} "$ARTIFACT_DIR/" \;
-        find rfone_host_build/install -name "libhydrasdr.so*" -exec cp {} "$ARTIFACT_DIR/" \; 2>/dev/null || true
+        find hydrasdr_host_build/install -name "libhydrasdr.so*" -exec cp {} "$ARTIFACT_DIR/" \; 2>/dev/null || true
 
     # === Create distribution packages ===
     # FIXED: Install to multiple SoapySDR paths for compatibility with different installations
@@ -1207,7 +1206,7 @@ jobs:
         %changelog
         * Tue Jul 30 2024 Benjamin Vernoux <bvernoux@hydrasdr.com> - %{version}-1
         - Automated build from CI for %{distname}
-        - Built with LibHydraSDR %{rfone_version}
+        - Built with LibHydraSDR %{hydrasdr_host_version}
         - Fixed: No longer bundles libhydrasdr.so (depends on hydrasdr-host-tools)
         EOF
         
@@ -1221,7 +1220,7 @@ jobs:
             --define "version ${PACKAGE_VERSION}" \
             --define "homepage ${{ env.HOMEPAGE }}" \
             --define "distname ${{ matrix.name }}" \
-            --define "rfone_version ${{ needs.extract-version.outputs.rfone_version }}" \
+            --define "hydrasdr_host_version ${{ needs.extract-version.outputs.hydrasdr_host_version }}" \
             --define "temp_install ${TEMP_INSTALL_DIR}" \
             --define "__brp_check_rpaths %{nil}" \
             --define "_binaries_in_noarch_packages_terminate_build 0" \
@@ -1231,7 +1230,7 @@ jobs:
             --define "version ${PACKAGE_VERSION}" \
             --define "homepage ${{ env.HOMEPAGE }}" \
             --define "distname ${{ matrix.name }}" \
-            --define "rfone_version ${{ needs.extract-version.outputs.rfone_version }}" \
+            --define "hydrasdr_host_version ${{ needs.extract-version.outputs.hydrasdr_host_version }}" \
             --define "temp_install ${TEMP_INSTALL_DIR}" \
             --define "__brp_check_rpaths %{nil}" \
             --define "_binaries_in_noarch_packages_terminate_build 0" \
@@ -1403,7 +1402,7 @@ jobs:
         gh release delete nightly -R ${{github.repository}} --yes || echo "Nightly release doesn't exist"
         
         # Create fresh nightly release
-        gh release create nightly -R ${{github.repository}} --title "Nightly Build" --notes "Automated nightly build from CI - Built from commit ${{ github.sha }} with LibHydraSDR ${{ needs.extract-version.outputs.rfone_version }}" --prerelease
+        gh release create nightly -R ${{github.repository}} --title "Nightly Build" --notes "Automated nightly build from CI - Built from commit ${{ github.sha }} with LibHydraSDR ${{ needs.extract-version.outputs.hydrasdr_host_version }}" --prerelease
         
         # Upload platform-specific archives
         if [ -d "soapyhydrasdr_all" ] && [ "$(ls -A soapyhydrasdr_all)" ]; then
@@ -1420,14 +1419,14 @@ jobs:
         **Build Date:** $(date -u)
         **Branch:** ${{ github.ref_name }}
         **SoapyHydraSDR Version:** ${{ needs.extract-version.outputs.version }}
-        **LibHydraSDR Version:** ${{ needs.extract-version.outputs.rfone_version }}
+        **LibHydraSDR Version:** ${{ needs.extract-version.outputs.hydrasdr_host_version }}
 
         ## SoapySDR Module for HydraSDR RFOne
 
         This release provides SoapySDR driver modules for HydraSDR RFOne software-defined radio hardware, enabling seamless integration with the SoapySDR ecosystem and applications like GQRX, SDR++, GNU Radio, and more.
 
         **Key Features:**
-        - Built with latest LibHydraSDR (${{ needs.extract-version.outputs.rfone_version }}) from source
+        - Built with latest LibHydraSDR (${{ needs.extract-version.outputs.hydrasdr_host_version }}) from source
         - **Built against SoapySDR ABI 0.8-3** for compatibility with source-built SoapySDR
         - No hardcoded dependencies - always uses latest HydraSDR host libraries
         - Full SoapySDR integration for all compatible applications
