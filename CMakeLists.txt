@@ -112,6 +112,7 @@ if(NOT SOAPY_SDR_MODULE_DIR)
 		elseif(APPLE)
 			# Try multiple paths on macOS
 			foreach(POSSIBLE_DIR
+				"${CMAKE_INSTALL_PREFIX}/lib/SoapySDR/modules${SoapySDR_ABI_VERSION}"
 				"/usr/local/lib/SoapySDR/modules${SoapySDR_ABI_VERSION}"
 				"/usr/local/lib/SoapySDR/modules0.8-3"
 				"/usr/local/lib/SoapySDR/modules0.8"
@@ -122,12 +123,14 @@ if(NOT SOAPY_SDR_MODULE_DIR)
 				endif()
 			endforeach()
 			if(NOT SOAPY_SDR_MODULE_DIR)
-				set(SOAPY_SDR_MODULE_DIR "/usr/local/lib/SoapySDR/modules${SoapySDR_ABI_VERSION}")
+				set(SOAPY_SDR_MODULE_DIR "${CMAKE_INSTALL_PREFIX}/lib/SoapySDR/modules${SoapySDR_ABI_VERSION}")
 			endif()
 		else()
 			# Linux - try common locations with both ABI versions
-			# Order: source-built paths first (0.8-3), then system package paths (0.8)
+			# Order: CMAKE_INSTALL_PREFIX first (for custom prefixes like Flatpak),
+			# then source-built paths (0.8-3), then system package paths (0.8)
 			foreach(POSSIBLE_DIR
+				"${CMAKE_INSTALL_PREFIX}/lib/SoapySDR/modules${SoapySDR_ABI_VERSION}"
 				"/usr/local/lib/SoapySDR/modules${SoapySDR_ABI_VERSION}"
 				"/usr/local/lib/SoapySDR/modules0.8-3"
 				"/usr/local/lib/SoapySDR/modules0.8"
@@ -142,9 +145,9 @@ if(NOT SOAPY_SDR_MODULE_DIR)
 				endif()
 			endforeach()
 
-			# Final fallback - use detected ABI version with /usr/local prefix
+			# Final fallback - use detected ABI version with CMAKE_INSTALL_PREFIX
 			if(NOT SOAPY_SDR_MODULE_DIR)
-				set(SOAPY_SDR_MODULE_DIR "/usr/local/lib/SoapySDR/modules${SoapySDR_ABI_VERSION}")
+				set(SOAPY_SDR_MODULE_DIR "${CMAKE_INSTALL_PREFIX}/lib/SoapySDR/modules${SoapySDR_ABI_VERSION}")
 			endif()
 		endif()
 		message(STATUS "SoapySDR module directory not auto-detected, using fallback: ${SOAPY_SDR_MODULE_DIR}")
@@ -355,17 +358,9 @@ if(LibHYDRASDR_INCLUDE_DIRS)
 	endif()
 endif()
 
-# Installation rules
-install(TARGETS SoapyHydraSDR
-	LIBRARY DESTINATION ${SOAPY_SDR_MODULE_DIR}
-	ARCHIVE DESTINATION ${SOAPY_SDR_MODULE_DIR}  
-	RUNTIME DESTINATION ${SOAPY_SDR_MODULE_DIR}
-)
-
-# Verify module directory before installation
-if(NOT SOAPY_SDR_MODULE_DIR)
-	message(FATAL_ERROR "SoapySDR module directory not found. Cannot install module.")
-endif()
+# Note: SOAPY_SDR_MODULE_UTIL() above already handles module installation
+# to ${CMAKE_INSTALL_LIBDIR}/SoapySDR/modules${SOAPY_SDR_ABI_VERSION}/
+# which properly respects CMAKE_INSTALL_PREFIX for custom prefixes (Flatpak, etc.)
 
 message(STATUS "Will install SoapySDR module to: ${SOAPY_SDR_MODULE_DIR}")
 
